@@ -13,6 +13,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const db = new Database('database.sqlite');
+db.pragma('journal_mode = WAL');
 
 // Initialize database
 db.exec(`
@@ -28,6 +29,7 @@ db.exec(`
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME,
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
   );
 
@@ -60,6 +62,17 @@ db.exec(`
   INSERT OR IGNORE INTO users (id, username, is_guest) VALUES ('ai_2', 'AI Bot 2', 1);
   INSERT OR IGNORE INTO users (id, username, is_guest) VALUES ('ai_3', 'AI Bot 3', 1);
 `);
+
+try {
+  db.prepare("ALTER TABLE sessions ADD COLUMN expires_at DATETIME").run();
+  // Fill existing sessions with +30 days expiry
+  db.prepare("UPDATE sessions SET expires_at = datetime('now', '+30 days') WHERE expires_at IS NULL").run();
+} catch (e) {
+  // column already exists
+}
+
+// Prune expired sessions
+db.prepare("DELETE FROM sessions WHERE expires_at < datetime('now')").run();
 
 const app = express();
 const PORT = 3000;
@@ -161,9 +174,10 @@ const authenticate = (req: express.Request, res: express.Response, next: express
   }
 
   const token = authHeader.split(' ')[1];
-  const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(token) as any;
+  const session = db.prepare("SELECT * FROM sessions WHERE id = ? AND (expires_at IS NULL OR expires_at > datetime('now'))").get(token) as any;
 
   if (!session) {
+    db.prepare('DELETE FROM sessions WHERE id = ?').run(token);
     return res.status(401).json({ error: 'Invalid or expired session' });
   }
 
@@ -196,7 +210,7 @@ app.post('/api/auth/register', (req, res) => {
     db.prepare('INSERT INTO users (id, username, password_hash, is_guest) VALUES (?, ?, ?, 0)').run(userId, username, passwordHash);
 
     const token = generateSessionToken();
-    db.prepare('INSERT INTO sessions (id, user_id) VALUES (?, ?)').run(token, userId);
+    db.prepare("INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 days'))").run(token, userId);
 
     res.json({ token, user: { id: userId, username, isGuest: false } });
   } catch (error: any) {
@@ -221,7 +235,7 @@ app.post('/api/auth/login', (req, res) => {
   }
 
   const token = generateSessionToken();
-  db.prepare('INSERT INTO sessions (id, user_id) VALUES (?, ?)').run(token, user.id);
+  db.prepare("INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 days'))").run(token, user.id);
 
   res.json({ token, user: { id: user.id, username: user.username, isGuest: !!user.is_guest } });
 });
@@ -263,7 +277,7 @@ app.post('/api/auth/guest', (req, res) => {
   }
 
   const token = generateSessionToken();
-  db.prepare('INSERT INTO sessions (id, user_id) VALUES (?, ?)').run(token, userId);
+  db.prepare("INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 days'))").run(token, userId);
 
   res.json({ token, user: { id: userId, username, isGuest: true } });
 });
@@ -353,13 +367,48 @@ app.delete('/api/matches/:id', authenticate, (req, res) => {
 });
 
 app.get('/api/auth/me', authenticate, (req, res) => {
-  res.json({ user: (req as any).user });
+  res.json({ user: { ...((req as any).user), isGuest: !!(req as any).user.is_guest } });
 });
 
 app.post('/api/auth/logout', authenticate, (req, res) => {
   const token = (req as any).sessionToken;
   db.prepare('DELETE FROM sessions WHERE id = ?').run(token);
   res.json({ success: true });
+});
+
+app.post('/api/auth/logout-others', authenticate, (req, res) => {
+  const token = (req as any).sessionToken;
+  const userId = (req as any).user.id;
+  db.prepare('DELETE FROM sessions WHERE user_id = ? AND id != ?').run(userId, token);
+  res.json({ success: true });
+});
+
+app.post('/api/auth/upgrade', authenticate, (req, res) => {
+  const user = (req as any).user;
+  if (!user.is_guest) {
+    return res.status(400).json({ error: 'Account is already registered' });
+  }
+
+  const { newUsername, password } = req.body;
+  if (!password) {
+    return res.status(400).json({ error: 'Password is required' });
+  }
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters long' });
+  }
+
+  const finalUsername = newUsername && newUsername.trim() !== '' ? newUsername.trim() : user.username;
+
+  try {
+    const passwordHash = hashPassword(password);
+    db.prepare('UPDATE users SET username = ?, password_hash = ?, is_guest = 0 WHERE id = ?').run(finalUsername, passwordHash, user.id);
+    res.json({ success: true, user: { id: user.id, username: finalUsername, isGuest: false } });
+  } catch (error: any) {
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: 'Username already exists' });
+    }
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Lobby Routes

@@ -6,7 +6,66 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+:root {
+  /* Felt green palette */
+  --felt-deep: #0c1a12;
+  --felt-dark: #1a2e22;
+  --felt-mid: #243a2c;
+  --felt-border: #2d4a38;
+  --felt-light: #3d5e48;
+
+  /* Wood / warm palette */
+  --wood-gold: #d97706;
+  --wood-gold-light: #f59e0b;
+
+  /* Ivory text */
+  --ivory: #faf6ee;
+  --ivory-dim: #d4ddd0;
+  --sage: #a8b5a0;
+  --sage-dark: #7a8f74;
+  --sage-muted: #5a7054;
+
+  /* Tile */
+  --tile-bg: #f5f0e1;
+  --tile-dot: #1a1207;
+}
+
 body {
-  background-color: #09090b; /* zinc-950 */
-  color: #f4f4f5; /* zinc-100 */
+  background-color: var(--felt-deep);
+  color: var(--ivory);
+}
+
+/* Subtle felt texture via noise gradient */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(45, 74, 56, 0.3) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 80%, rgba(26, 46, 34, 0.4) 0%, transparent 50%),
+    var(--felt-deep);
+  pointer-events: none;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--felt-dark);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--felt-border);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--felt-light);
+}
+
+/* Selection */
+::selection {
+  background: rgba(245, 158, 11, 0.3);
+  color: var(--ivory);
 }

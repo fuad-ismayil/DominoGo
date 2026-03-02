@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Maximize, Minimize, Users, UserPlus, Play, History, LogIn, Plus, LogOut, X, Layers, Trash2, Copy, Check } from 'lucide-react';
+import { Maximize, Minimize, Users, UserPlus, Play, History, LogIn, Plus, LogOut, X, Layers, Trash2, Copy, Check, Shield, MonitorOff, AlertTriangle } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { DndContext, useDraggable, useDroppable, DragEndEvent, DragStartEvent, TouchSensor, MouseSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { DominoTile } from './components/DominoTile';
 import { canPlayTile } from './game/engine';
 
-type Screen = 'ENTRY' | 'LOGIN' | 'REGISTER' | 'MAIN_MENU' | 'CREATE_LOBBY' | 'JOIN_LOBBY' | 'LOBBY' | 'GAME';
+type Screen = 'ENTRY' | 'LOGIN' | 'REGISTER' | 'MAIN_MENU' | 'CREATE_LOBBY' | 'JOIN_LOBBY' | 'LOBBY' | 'GAME' | 'UPGRADE_ACCOUNT';
 
 function DraggableTile({ id, isPlayable, children }: { id: string, isPlayable: boolean, children: React.ReactNode }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -54,7 +54,7 @@ function DroppableZone({ id, isVisible, children, scale = 1 }: { id: string, isV
     <div
       ref={setNodeRef}
       style={{ width: `${width}px`, height: `${height}px` }}
-      className={`transition-all duration-200 ${isOver ? 'bg-emerald-500/30 border-emerald-400 scale-110' : 'bg-zinc-800/30 border-zinc-600'} border-2 border-dashed rounded-md sm:rounded-lg flex items-center justify-center shrink-0`}
+      className={`transition-all duration-200 ${isOver ? 'bg-amber-500/30 border-amber-400 scale-110' : 'bg-[#243a2c]/30 border-[#5a7054]'} border-2 border-dashed rounded-md sm:rounded-lg flex items-center justify-center shrink-0`}
     >
       {children}
     </div>
@@ -65,6 +65,7 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('ENTRY');
   const [username, setUsername] = useState('');
   const [userId, setUserId] = useState('');
+  const [isGuest, setIsGuest] = useState(false);
   const [inputName, setInputName] = useState('');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -189,6 +190,7 @@ export default function App() {
           const data = await res.json();
           setUsername(data.user.username);
           setUserId(data.user.id);
+          setIsGuest(data.user.isGuest);
           setCurrentScreen('MAIN_MENU');
         } else {
           localStorage.removeItem('domino_token');
@@ -250,6 +252,7 @@ export default function App() {
       localStorage.setItem('domino_token', data.token);
       setUsername(data.user.username);
       setUserId(data.user.id);
+      setIsGuest(data.user.isGuest);
       setCurrentScreen('MAIN_MENU');
     } catch (err: any) {
       setErrorMsg(err.message);
@@ -276,6 +279,7 @@ export default function App() {
       localStorage.setItem('domino_token', data.token);
       setUsername(data.user.username);
       setUserId(data.user.id);
+      setIsGuest(data.user.isGuest);
       setCurrentScreen('MAIN_MENU');
     } catch (err: any) {
       setErrorMsg(err.message);
@@ -302,6 +306,7 @@ export default function App() {
       localStorage.setItem('domino_token', data.token);
       setUsername(data.user.username);
       setUserId(data.user.id);
+      setIsGuest(data.user.isGuest);
       setCurrentScreen('MAIN_MENU');
     } catch (err: any) {
       setErrorMsg(err.message);
@@ -325,9 +330,51 @@ export default function App() {
     localStorage.removeItem('domino_token');
     setUsername('');
     setUserId('');
+    setIsGuest(false);
     setInputName('');
     setPassword('');
     setCurrentScreen('ENTRY');
+  };
+
+  const handleLogoutOthers = async () => {
+    const token = localStorage.getItem('domino_token');
+    if (token) {
+      try {
+        await fetch('/api/auth/logout-others', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        alert('Successfully logged out from all other devices.');
+      } catch (err) {
+        console.error('Logout others failed', err);
+      }
+    }
+  };
+
+  const handleUpgrade = async () => {
+    if (password.length < 8) return;
+    setIsLoading(true);
+    setErrorMsg('');
+
+    try {
+      const token = localStorage.getItem('domino_token');
+      const res = await fetch('/api/auth/upgrade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ newUsername: inputName.trim(), password })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to upgrade account');
+
+      setUsername(data.user.username);
+      setIsGuest(false);
+      setCurrentScreen('MAIN_MENU');
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCreateLobby = async (players: number) => {
@@ -472,14 +519,14 @@ export default function App() {
 
   if (isLoading && currentScreen === 'ENTRY' && !username) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-screen bg-[#0c1a12] flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen w-screen bg-zinc-950 text-zinc-100 font-sans overflow-hidden flex flex-col relative selection:bg-emerald-500/30 text-sm sm:text-base">
+    <div className="h-screen w-screen bg-[#0c1a12] text-[#faf6ee] font-sans overflow-hidden flex flex-col relative selection:bg-amber-500/30 text-sm sm:text-base">
       <style>{`
         @media screen and (max-width: 768px) and (orientation: portrait) {
           .portrait-warning {
@@ -489,15 +536,15 @@ export default function App() {
       `}</style>
 
       {/* Orientation Warning */}
-      <div className="portrait-warning fixed inset-0 z-[9999] bg-zinc-950 flex-col items-center justify-center p-8 text-center hidden">
-        <div className="w-20 h-20 border-4 border-zinc-700 rounded-3xl flex items-center justify-center mb-6 animate-pulse">
+      <div className="portrait-warning fixed inset-0 z-[9999] bg-[#0f2318] flex-col items-center justify-center p-8 text-center hidden">
+        <div className="w-20 h-20 border-4 border-[#2d4a38] rounded-3xl flex items-center justify-center mb-6 animate-pulse">
           <div className="w-12 h-16 border-2 border-zinc-500 rounded-xl relative">
             <div className="absolute top-1 left-1/2 -translate-x-1/2 w-4 h-1 bg-zinc-500 rounded-full"></div>
             <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-zinc-500 rounded-full"></div>
           </div>
         </div>
         <h2 className="text-2xl font-bold text-white mb-2">Rotate Your Device</h2>
-        <p className="text-zinc-400">Please rotate your phone to landscape mode to play DominoGo.</p>
+        <p className="text-[#a8b5a0]">Please rotate your phone to landscape mode to play DominoGo.</p>
       </div>
 
       {/* Top Bar - hidden on GAME and LOBBY screens */}
@@ -506,7 +553,7 @@ export default function App() {
           <div className="pointer-events-auto">
             <button
               onClick={toggleFullscreen}
-              className="p-1 sm:p-2 rounded-full bg-zinc-900/30 hover:bg-zinc-800/50 text-zinc-500 hover:text-white transition-colors backdrop-blur-sm border border-zinc-800/30"
+              className="p-1 sm:p-2 rounded-full bg-[#1a2e22]/30 hover:bg-[#243a2c]/50 text-[#7a8f74] hover:text-white transition-colors backdrop-blur-sm border border-[#2d4a38]/30"
             >
               {isFullscreen ? <Minimize size={14} className="sm:w-5 sm:h-5" /> : <Maximize size={14} className="sm:w-5 sm:h-5" />}
             </button>
@@ -524,10 +571,10 @@ export default function App() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="w-full max-w-[260px] sm:max-w-md bg-zinc-900/80 backdrop-blur-md p-2 sm:p-6 rounded-xl sm:rounded-2xl border border-zinc-800 shadow-2xl"
+              className="w-full max-w-[260px] sm:max-w-md bg-[#1a2e22]/90 backdrop-blur-md p-2 sm:p-6 rounded-xl sm:rounded-2xl border border-[#2d4a38] shadow-2xl"
             >
               <h1 className="text-base sm:text-3xl font-bold mb-0.5 sm:mb-2 text-center">Welcome</h1>
-              <p className="text-zinc-400 text-center mb-2 sm:mb-8 text-[8px] sm:text-sm">Enter a username to get started</p>
+              <p className="text-[#a8b5a0] text-center mb-2 sm:mb-8 text-[8px] sm:text-sm">Enter a username to get started</p>
 
               {errorMsg && (
                 <div className="mb-2 p-1.5 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-[8px] sm:text-sm text-center">
@@ -542,7 +589,7 @@ export default function App() {
                     placeholder="Username"
                     value={inputName}
                     onChange={(e) => setInputName(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg sm:rounded-xl px-2 py-1.5 sm:px-4 sm:py-3 text-[10px] sm:text-base text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                    className="w-full bg-[#0f2318] border border-[#2d4a38] rounded-lg sm:rounded-xl px-2 py-1.5 sm:px-4 sm:py-3 text-[10px] sm:text-base text-white placeholder:text-[#5a7054] focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
                     onKeyDown={(e) => e.key === 'Enter' && handleGuestLogin()}
                     disabled={isLoading}
                   />
@@ -551,28 +598,28 @@ export default function App() {
                 <button
                   onClick={handleGuestLogin}
                   disabled={!inputName.trim() || isLoading}
-                  className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-semibold py-1.5 sm:py-3 text-[10px] sm:text-base rounded-lg sm:rounded-xl transition-all flex items-center justify-center gap-1 sm:gap-2"
+                  className="w-full bg-amber-600 hover:bg-amber-500 disabled:bg-[#243a2c] disabled:text-[#7a8f74] text-white font-semibold py-1.5 sm:py-3 text-[10px] sm:text-base rounded-lg sm:rounded-xl transition-all flex items-center justify-center gap-1 sm:gap-2"
                 >
                   {isLoading ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <LogIn size={11} className="sm:w-[18px] sm:h-[18px]" />}
                   Play as Guest
                 </button>
 
                 <div className="relative py-1 sm:py-4 flex items-center">
-                  <div className="flex-grow border-t border-zinc-800"></div>
-                  <span className="flex-shrink-0 mx-2 text-zinc-500 text-[8px] uppercase tracking-wider">or</span>
-                  <div className="flex-grow border-t border-zinc-800"></div>
+                  <div className="flex-grow border-t border-[#2d4a38]"></div>
+                  <span className="flex-shrink-0 mx-2 text-[#7a8f74] text-[8px] uppercase tracking-wider">or</span>
+                  <div className="flex-grow border-t border-[#2d4a38]"></div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-1.5 sm:gap-3">
                   <button
                     onClick={() => { setErrorMsg(''); setCurrentScreen('LOGIN'); }}
-                    className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-semibold py-1.5 sm:py-3 text-[10px] sm:text-base rounded-lg sm:rounded-xl transition-all flex items-center justify-center gap-1 sm:gap-2"
+                    className="w-full bg-[#243a2c] hover:bg-[#2d4a38] text-white font-semibold py-1.5 sm:py-3 text-[10px] sm:text-base rounded-lg sm:rounded-xl transition-all flex items-center justify-center gap-1 sm:gap-2"
                   >
                     Login
                   </button>
                   <button
                     onClick={() => { setErrorMsg(''); setCurrentScreen('REGISTER'); }}
-                    className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-semibold py-1.5 sm:py-3 text-[10px] sm:text-base rounded-lg sm:rounded-xl transition-all flex items-center justify-center gap-1 sm:gap-2"
+                    className="w-full bg-[#243a2c] hover:bg-[#2d4a38] text-white font-semibold py-1.5 sm:py-3 text-[10px] sm:text-base rounded-lg sm:rounded-xl transition-all flex items-center justify-center gap-1 sm:gap-2"
                   >
                     Register
                   </button>
@@ -587,10 +634,10 @@ export default function App() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="w-full max-w-[260px] sm:max-w-md bg-zinc-900/80 backdrop-blur-md p-2 sm:p-6 rounded-xl sm:rounded-2xl border border-zinc-800 shadow-2xl"
+              className="w-full max-w-[260px] sm:max-w-md bg-[#1a2e22]/90 backdrop-blur-md p-2 sm:p-6 rounded-xl sm:rounded-2xl border border-[#2d4a38] shadow-2xl"
             >
               <h1 className="text-base sm:text-3xl font-bold mb-0.5 sm:mb-2 text-center">Create Account</h1>
-              <p className="text-zinc-400 text-center mb-2 sm:mb-8 text-[8px] sm:text-sm">Register to save your progress</p>
+              <p className="text-[#a8b5a0] text-center mb-2 sm:mb-8 text-[8px] sm:text-sm">Register to save your progress</p>
 
               {errorMsg && (
                 <div className="mb-2 p-1.5 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-[8px] sm:text-sm text-center">
@@ -604,7 +651,7 @@ export default function App() {
                   placeholder="Username"
                   value={inputName}
                   onChange={(e) => setInputName(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg sm:rounded-xl px-2 py-1.5 sm:px-4 sm:py-3 text-[10px] sm:text-base text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                  className="w-full bg-[#0f2318] border border-[#2d4a38] rounded-lg sm:rounded-xl px-2 py-1.5 sm:px-4 sm:py-3 text-[10px] sm:text-base text-white placeholder:text-[#5a7054] focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
                   disabled={isLoading}
                 />
 
@@ -613,7 +660,7 @@ export default function App() {
                   placeholder="Password (min 8 chars)"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg sm:rounded-xl px-2 py-1.5 sm:px-4 sm:py-3 text-[10px] sm:text-base text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                  className="w-full bg-[#0f2318] border border-[#2d4a38] rounded-lg sm:rounded-xl px-2 py-1.5 sm:px-4 sm:py-3 text-[10px] sm:text-base text-white placeholder:text-[#5a7054] focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
                   onKeyDown={(e) => e.key === 'Enter' && handleRegister()}
                   disabled={isLoading}
                 />
@@ -621,7 +668,7 @@ export default function App() {
                 <button
                   onClick={handleRegister}
                   disabled={!inputName.trim() || password.length < 8 || isLoading}
-                  className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-semibold py-1.5 sm:py-3 text-[10px] sm:text-base rounded-lg sm:rounded-xl transition-all flex items-center justify-center gap-1 sm:gap-2"
+                  className="w-full bg-amber-600 hover:bg-amber-500 disabled:bg-[#243a2c] disabled:text-[#7a8f74] text-white font-semibold py-1.5 sm:py-3 text-[10px] sm:text-base rounded-lg sm:rounded-xl transition-all flex items-center justify-center gap-1 sm:gap-2"
                 >
                   {isLoading ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <UserPlus size={11} className="sm:w-[18px] sm:h-[18px]" />}
                   Register
@@ -629,7 +676,7 @@ export default function App() {
 
                 <button
                   onClick={() => { setErrorMsg(''); setCurrentScreen('ENTRY'); }}
-                  className="w-full bg-transparent hover:bg-zinc-800 text-zinc-400 font-semibold py-1.5 sm:py-3 text-[10px] sm:text-base rounded-lg sm:rounded-xl transition-all"
+                  className="w-full bg-transparent hover:bg-[#243a2c] text-[#a8b5a0] font-semibold py-1.5 sm:py-3 text-[10px] sm:text-base rounded-lg sm:rounded-xl transition-all"
                   disabled={isLoading}
                 >
                   Back
@@ -644,10 +691,10 @@ export default function App() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="w-full max-w-[260px] sm:max-w-md bg-zinc-900/80 backdrop-blur-md p-2 sm:p-6 rounded-xl sm:rounded-2xl border border-zinc-800 shadow-2xl"
+              className="w-full max-w-[260px] sm:max-w-md bg-[#1a2e22]/90 backdrop-blur-md p-2 sm:p-6 rounded-xl sm:rounded-2xl border border-[#2d4a38] shadow-2xl"
             >
               <h1 className="text-base sm:text-3xl font-bold mb-0.5 sm:mb-2 text-center">Welcome Back</h1>
-              <p className="text-zinc-400 text-center mb-2 sm:mb-8 text-[8px] sm:text-sm">Login to your account</p>
+              <p className="text-[#a8b5a0] text-center mb-2 sm:mb-8 text-[8px] sm:text-sm">Login to your account</p>
 
               {errorMsg && (
                 <div className="mb-2 p-1.5 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-[8px] sm:text-sm text-center">
@@ -661,7 +708,7 @@ export default function App() {
                   placeholder="Username"
                   value={inputName}
                   onChange={(e) => setInputName(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg sm:rounded-xl px-2 py-1.5 sm:px-4 sm:py-3 text-[10px] sm:text-base text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                  className="w-full bg-[#0f2318] border border-[#2d4a38] rounded-lg sm:rounded-xl px-2 py-1.5 sm:px-4 sm:py-3 text-[10px] sm:text-base text-white placeholder:text-[#5a7054] focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
                   disabled={isLoading}
                 />
 
@@ -670,7 +717,7 @@ export default function App() {
                   placeholder="Password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg sm:rounded-xl px-2 py-1.5 sm:px-4 sm:py-3 text-[10px] sm:text-base text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                  className="w-full bg-[#0f2318] border border-[#2d4a38] rounded-lg sm:rounded-xl px-2 py-1.5 sm:px-4 sm:py-3 text-[10px] sm:text-base text-white placeholder:text-[#5a7054] focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
                   onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                   disabled={isLoading}
                 />
@@ -678,7 +725,7 @@ export default function App() {
                 <button
                   onClick={handleLogin}
                   disabled={!inputName.trim() || !password.trim() || isLoading}
-                  className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-semibold py-1.5 sm:py-3 text-[10px] sm:text-base rounded-lg sm:rounded-xl transition-all flex items-center justify-center gap-1 sm:gap-2"
+                  className="w-full bg-amber-600 hover:bg-amber-500 disabled:bg-[#243a2c] disabled:text-[#7a8f74] text-white font-semibold py-1.5 sm:py-3 text-[10px] sm:text-base rounded-lg sm:rounded-xl transition-all flex items-center justify-center gap-1 sm:gap-2"
                 >
                   {isLoading ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <LogIn size={11} className="sm:w-[18px] sm:h-[18px]" />}
                   Login
@@ -686,10 +733,67 @@ export default function App() {
 
                 <button
                   onClick={() => { setErrorMsg(''); setCurrentScreen('ENTRY'); }}
-                  className="w-full bg-transparent hover:bg-zinc-800 text-zinc-400 font-semibold py-2 sm:py-3 text-[10px] sm:text-base rounded-lg sm:rounded-xl transition-all"
+                  className="w-full bg-transparent hover:bg-[#243a2c] text-[#a8b5a0] font-semibold py-2 sm:py-3 text-[10px] sm:text-base rounded-lg sm:rounded-xl transition-all"
                   disabled={isLoading}
                 >
                   Back
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {currentScreen === 'UPGRADE_ACCOUNT' && (
+            <motion.div
+              key="upgrade_account"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="w-full max-w-[260px] sm:max-w-md bg-[#1a2e22]/90 backdrop-blur-md p-2 sm:p-6 rounded-xl sm:rounded-2xl border border-[#2d4a38] shadow-2xl"
+            >
+              <h1 className="text-base sm:text-3xl font-bold mb-0.5 sm:mb-2 text-center">Save Account</h1>
+              <p className="text-[#a8b5a0] text-center mb-2 sm:mb-8 text-[8px] sm:text-sm">Set a password to save your progress permanently.</p>
+
+              {errorMsg && (
+                <div className="mb-2 p-1.5 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-[8px] sm:text-sm text-center">
+                  {errorMsg}
+                </div>
+              )}
+
+              <div className="space-y-1 sm:space-y-4">
+                <input
+                  type="text"
+                  placeholder="New Username (Optional)"
+                  value={inputName}
+                  onChange={(e) => setInputName(e.target.value)}
+                  className="w-full bg-[#0f2318] border border-[#2d4a38] rounded-lg sm:rounded-xl px-2 py-1.5 sm:px-4 sm:py-3 text-[10px] sm:text-base text-white placeholder:text-[#5a7054] focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
+                  disabled={isLoading}
+                />
+
+                <input
+                  type="password"
+                  placeholder="New Password (min 8 chars)"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-[#0f2318] border border-[#2d4a38] rounded-lg sm:rounded-xl px-2 py-1.5 sm:px-4 sm:py-3 text-[10px] sm:text-base text-white placeholder:text-[#5a7054] focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
+                  onKeyDown={(e) => e.key === 'Enter' && handleUpgrade()}
+                  disabled={isLoading}
+                />
+
+                <button
+                  onClick={handleUpgrade}
+                  disabled={password.length < 8 || isLoading}
+                  className="w-full bg-amber-600 hover:bg-amber-500 disabled:bg-[#243a2c] disabled:text-[#7a8f74] text-white font-semibold py-1.5 sm:py-3 text-[10px] sm:text-base rounded-lg sm:rounded-xl transition-all flex items-center justify-center gap-1 sm:gap-2"
+                >
+                  {isLoading ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Shield size={11} className="sm:w-[18px] sm:h-[18px]" />}
+                  Upgrade Account
+                </button>
+
+                <button
+                  onClick={() => { setErrorMsg(''); setCurrentScreen('MAIN_MENU'); }}
+                  className="w-full bg-transparent hover:bg-[#243a2c] text-[#a8b5a0] font-semibold py-1.5 sm:py-3 text-[10px] sm:text-base rounded-lg sm:rounded-xl transition-all"
+                  disabled={isLoading}
+                >
+                  Cancel
                 </button>
               </div>
             </motion.div>
@@ -703,30 +807,62 @@ export default function App() {
               exit={{ opacity: 0, scale: 1.05 }}
               className="w-full max-w-5xl h-full max-h-[450px] grid grid-cols-2 gap-4 items-stretch"
             >
-              <div className="bg-zinc-900/80 backdrop-blur-md p-4 sm:p-6 rounded-2xl border border-zinc-800 flex flex-col justify-center h-full relative">
-                <div className="absolute top-4 left-4 text-xs sm:text-sm font-bold tracking-tighter text-emerald-400 opacity-50">
+              <div className="bg-[#1a2e22]/90 backdrop-blur-md p-4 sm:p-6 rounded-2xl border border-[#2d4a38] flex flex-col justify-center h-full relative">
+                <div className="absolute top-4 left-4 text-xs sm:text-sm font-bold tracking-tighter text-amber-400 opacity-50">
                   DominoGo
                 </div>
-                <button
-                  onClick={handleLogout}
-                  className="absolute top-4 right-4 p-1.5 sm:p-2 rounded-full bg-zinc-950/50 hover:bg-zinc-800 text-zinc-500 hover:text-red-400 transition-colors border border-zinc-800"
-                  title="Logout"
-                >
-                  <LogOut size={14} className="sm:w-5 sm:h-5" />
-                </button>
-                <h2 className="text-xl font-bold mb-1">Hello, {username}</h2>
-                <p className="text-zinc-400 mb-4 sm:mb-6 text-xs sm:text-sm">What would you like to play today?</p>
+                <div className="absolute top-4 right-4 flex gap-2">
+                  {!isGuest && (
+                    <button
+                      onClick={handleLogoutOthers}
+                      className="p-1.5 sm:p-2 rounded-full bg-[#0f2318]/50 hover:bg-[#243a2c] text-[#7a8f74] hover:text-amber-400 transition-colors border border-[#2d4a38]"
+                      title="Log out other devices"
+                    >
+                      <Layers size={14} className="sm:w-5 sm:h-5" />
+                    </button>
+                  )}
+                  <button
+                    onClick={handleLogout}
+                    className="p-1.5 sm:p-2 rounded-full bg-[#0f2318]/50 hover:bg-[#243a2c] text-[#7a8f74] hover:text-red-400 transition-colors border border-[#2d4a38]"
+                    title="Logout"
+                  >
+                    <LogOut size={14} className="sm:w-5 sm:h-5" />
+                  </button>
+                </div>
+                <div className="mb-4 sm:mb-6">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h2 className="text-xl font-bold truncate">Hello, {username}</h2>
+                    {isGuest && <span className="shrink-0 bg-[#243a2c] text-[#a8b5a0] text-[10px] px-2 py-0.5 rounded-full uppercase font-bold">Guest</span>}
+                  </div>
+                  {isGuest ? (
+                    <button
+                      onClick={() => { setInputName(username); setPassword(''); setErrorMsg(''); setCurrentScreen('UPGRADE_ACCOUNT'); }}
+                      className="w-full mt-2 bg-amber-500/10 border border-amber-500/30 rounded-xl p-2.5 sm:p-3 text-left hover:bg-amber-500/15 transition-colors group"
+                    >
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-amber-300 font-semibold text-xs sm:text-sm">Your progress is at risk!</p>
+                          <p className="text-[#a8b5a0] text-[9px] sm:text-xs mt-0.5 leading-relaxed">Create an account to save your game history, pick a clean username, and log in from any device.</p>
+                          <span className="inline-flex items-center gap-1 mt-1 text-amber-400 font-semibold text-[10px] sm:text-xs group-hover:text-amber-300 transition-colors">Create Account <span>→</span></span>
+                        </div>
+                      </div>
+                    </button>
+                  ) : (
+                    <p className="text-[#a8b5a0] text-xs sm:text-sm">What would you like to play today?</p>
+                  )}
+                </div>
 
                 <div className="space-y-2 sm:space-y-3">
                   <button
                     onClick={() => setCurrentScreen('CREATE_LOBBY')}
-                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 sm:py-3 rounded-xl transition-all flex items-center justify-between px-4 sm:px-5 group"
+                    className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2.5 sm:py-3 rounded-xl transition-all flex items-center justify-between px-4 sm:px-5 group"
                   >
                     <div className="flex items-center gap-2 sm:gap-3">
                       <Plus size={16} className="sm:w-[18px] sm:h-[18px]" />
                       <span className="text-sm sm:text-base">Create Lobby</span>
                     </div>
-                    <span className="opacity-0 group-hover:opacity-100 transition-opacity text-emerald-200 text-[10px] sm:text-xs">Host a game</span>
+                    <span className="opacity-0 group-hover:opacity-100 transition-opacity text-amber-200 text-[10px] sm:text-xs">Host a game</span>
                   </button>
 
                   <button
@@ -734,7 +870,7 @@ export default function App() {
                       setErrorMsg('');
                       setCurrentScreen('JOIN_LOBBY');
                     }}
-                    className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-semibold py-2.5 sm:py-3 rounded-xl transition-all flex items-center justify-between px-4 sm:px-5"
+                    className="w-full bg-[#243a2c] hover:bg-[#2d4a38] text-white font-semibold py-2.5 sm:py-3 rounded-xl transition-all flex items-center justify-between px-4 sm:px-5"
                   >
                     <div className="flex items-center gap-2 sm:gap-3">
                       <Users size={16} className="sm:w-[18px] sm:h-[18px]" />
@@ -744,15 +880,15 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="bg-zinc-900/80 backdrop-blur-md p-4 sm:p-6 rounded-2xl border border-zinc-800 flex flex-col h-full min-h-0">
-                <div className="flex items-center gap-2 mb-4 text-zinc-400 shrink-0">
+              <div className="bg-[#1a2e22]/90 backdrop-blur-md p-4 sm:p-6 rounded-2xl border border-[#2d4a38] flex flex-col h-full min-h-0">
+                <div className="flex items-center gap-2 mb-4 text-[#a8b5a0] shrink-0">
                   <History size={18} />
                   <h3 className="font-semibold uppercase tracking-wider text-sm">Match History</h3>
                 </div>
 
                 {matchHistory.length === 0 ? (
-                  <div className="flex-1 flex flex-col items-center justify-center text-zinc-500 space-y-2 min-h-0">
-                    <div className="w-16 h-16 rounded-full border border-dashed border-zinc-700 flex items-center justify-center mb-2">
+                  <div className="flex-1 flex flex-col items-center justify-center text-[#7a8f74] space-y-2 min-h-0">
+                    <div className="w-16 h-16 rounded-full border border-dashed border-[#2d4a38] flex items-center justify-center mb-2">
                       <History size={24} className="opacity-50" />
                     </div>
                     <p>No matches played yet.</p>
@@ -771,19 +907,19 @@ export default function App() {
                       return (
                         <div
                           key={match.id}
-                          className={`bg-zinc-800/50 hover:bg-zinc-800 border ${isFinished ? 'border-zinc-700/30' : 'border-emerald-500/20'} rounded-lg p-2 flex flex-col gap-1 cursor-pointer transition-colors`}
+                          className={`bg-[#243a2c]/50 hover:bg-[#243a2c] border ${isFinished ? 'border-[#2d4a38]/30' : 'border-amber-500/20'} rounded-lg p-2 flex flex-col gap-1 cursor-pointer transition-colors`}
                           onClick={() => {
                             handleJoinLobby(match.id);
                           }}
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
-                              <div className="font-medium text-zinc-200 truncate text-sm" title={playerNames}>
+                              <div className="font-medium text-[#d4ddd0] truncate text-sm" title={playerNames}>
                                 {playerNames || `Lobby: ${match.id}`}
                               </div>
-                              <div className="text-[10px] text-zinc-500 mt-0.5 flex items-center gap-2">
-                                <span className={`px-2 py-0.5 rounded-md ${isFinished ? 'bg-zinc-700 text-zinc-300' :
-                                  isPlaying ? 'bg-emerald-500/20 text-emerald-400' :
+                              <div className="text-[10px] text-[#7a8f74] mt-0.5 flex items-center gap-2">
+                                <span className={`px-2 py-0.5 rounded-md ${isFinished ? 'bg-[#2d4a38] text-[#d4ddd0]' :
+                                  isPlaying ? 'bg-amber-500/20 text-amber-400' :
                                     'bg-amber-500/20 text-amber-400'
                                   }`}>
                                   {isFinished ? 'Finished' : isPlaying ? 'In Progress' : 'Waiting'}
@@ -794,7 +930,7 @@ export default function App() {
 
                             <div className="flex flex-col items-end gap-1">
                               <div className="flex items-center gap-2">
-                                <div className="text-[10px] text-zinc-500 whitespace-nowrap uppercase tracking-wider font-semibold">
+                                <div className="text-[10px] text-[#7a8f74] whitespace-nowrap uppercase tracking-wider font-semibold">
                                   {isFinished ? 'Ended' : 'Last Played'}
                                 </div>
                                 {deletingMatchId === match.id ? (
@@ -807,7 +943,7 @@ export default function App() {
                                     </button>
                                     <button
                                       onClick={(e) => { e.stopPropagation(); setDeletingMatchId(null); }}
-                                      className="text-xs bg-zinc-700 text-zinc-300 hover:bg-zinc-600 px-2 py-0.5 rounded transition-colors"
+                                      className="text-xs bg-[#2d4a38] text-[#d4ddd0] hover:bg-[#3d5e48] px-2 py-0.5 rounded transition-colors"
                                     >
                                       Cancel
                                     </button>
@@ -815,18 +951,18 @@ export default function App() {
                                 ) : (
                                   <button
                                     onClick={(e) => handleDeleteMatch(e, match.id)}
-                                    className="text-zinc-500 hover:text-red-400 transition-colors p-1"
+                                    className="text-[#7a8f74] hover:text-red-400 transition-colors p-1"
                                     title="Remove from history"
                                   >
                                     <X size={14} />
                                   </button>
                                 )}
                               </div>
-                              <div className="text-xs text-zinc-400 whitespace-nowrap">
+                              <div className="text-xs text-[#a8b5a0] whitespace-nowrap">
                                 {dateStr}
                               </div>
                               {!isFinished && (
-                                <div className="bg-emerald-500/10 text-emerald-400 p-1.5 rounded-lg mt-1">
+                                <div className="bg-amber-500/10 text-amber-400 p-1.5 rounded-lg mt-1">
                                   <Play size={14} />
                                 </div>
                               )}
@@ -834,12 +970,12 @@ export default function App() {
                           </div>
 
                           {match.scores && (
-                            <div className="pt-1 border-t border-zinc-700/50 grid grid-cols-2 gap-1">
+                            <div className="pt-1 border-t border-[#2d4a38]/50 grid grid-cols-2 gap-1">
                               {match.players.map((p: any) => {
                                 const score = match.scores[p.id]?.permanent || 0;
                                 const isWinner = match.winner === p.id;
                                 return (
-                                  <div key={p.id} className={`text-[10px] flex justify-between items-center p-1 rounded-md ${isWinner ? 'bg-emerald-500/10 text-emerald-400 font-bold' : 'text-zinc-400'}`}>
+                                  <div key={p.id} className={`text-[10px] flex justify-between items-center p-1 rounded-md ${isWinner ? 'bg-amber-500/10 text-amber-400 font-bold' : 'text-[#a8b5a0]'}`}>
                                     <span className="truncate pr-2">{p.username}</span>
                                     <span>{score}</span>
                                   </div>
@@ -862,21 +998,21 @@ export default function App() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="w-full max-w-md bg-zinc-900/80 backdrop-blur-md p-6 rounded-2xl border border-zinc-800"
+              className="w-full max-w-md bg-[#1a2e22]/90 backdrop-blur-md p-6 rounded-2xl border border-[#2d4a38]"
             >
               <h2 className="text-2xl font-bold mb-6 text-center">Create Lobby</h2>
 
               <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-3">Select Player Count</label>
+                  <label className="block text-sm font-medium text-[#a8b5a0] mb-3">Select Player Count</label>
                   <div className="grid grid-cols-3 gap-3">
                     {[2, 3, 4].map(num => (
                       <button
                         key={num}
                         onClick={() => handleCreateLobby(num)}
-                        className="bg-zinc-800 hover:bg-emerald-600/20 hover:border-emerald-500/50 border border-zinc-700 py-4 rounded-xl transition-all flex flex-col items-center gap-2"
+                        className="bg-[#243a2c] hover:bg-amber-600/20 hover:border-amber-500/50 border border-[#2d4a38] py-4 rounded-xl transition-all flex flex-col items-center gap-2"
                       >
-                        <Users size={24} className={num === 2 ? "text-zinc-300" : "text-zinc-400"} />
+                        <Users size={24} className={num === 2 ? "text-[#d4ddd0]" : "text-[#a8b5a0]"} />
                         <span className="font-semibold">{num} Players</span>
                       </button>
                     ))}
@@ -885,7 +1021,7 @@ export default function App() {
 
                 <button
                   onClick={() => setCurrentScreen('MAIN_MENU')}
-                  className="w-full bg-transparent hover:bg-zinc-800 text-zinc-400 font-semibold py-3 rounded-xl transition-all"
+                  className="w-full bg-transparent hover:bg-[#243a2c] text-[#a8b5a0] font-semibold py-3 rounded-xl transition-all"
                 >
                   Cancel
                 </button>
@@ -899,7 +1035,7 @@ export default function App() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="w-full max-w-md bg-zinc-900/80 backdrop-blur-md p-6 rounded-2xl border border-zinc-800"
+              className="w-full max-w-md bg-[#1a2e22]/90 backdrop-blur-md p-6 rounded-2xl border border-[#2d4a38]"
             >
               <h2 className="text-2xl font-bold mb-6 text-center">Join Lobby</h2>
 
@@ -914,7 +1050,7 @@ export default function App() {
                   <input
                     type="text"
                     placeholder="Enter 7-character Lobby ID"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all uppercase text-center tracking-widest font-mono"
+                    className="w-full bg-[#0f2318] border border-[#2d4a38] rounded-xl px-4 py-3 text-white placeholder:text-[#5a7054] focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all uppercase text-center tracking-widest font-mono"
                     maxLength={7}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -929,7 +1065,7 @@ export default function App() {
                     const input = document.querySelector('input') as HTMLInputElement;
                     handleJoinLobby(input.value);
                   }}
-                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 rounded-xl transition-all"
+                  className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-3 rounded-xl transition-all"
                 >
                   Join Game
                 </button>
@@ -939,7 +1075,7 @@ export default function App() {
                     setErrorMsg('');
                     setCurrentScreen('MAIN_MENU');
                   }}
-                  className="w-full bg-transparent hover:bg-zinc-800 text-zinc-400 font-semibold py-3 rounded-xl transition-all"
+                  className="w-full bg-transparent hover:bg-[#243a2c] text-[#a8b5a0] font-semibold py-3 rounded-xl transition-all"
                 >
                   Cancel
                 </button>
@@ -953,23 +1089,23 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 1.05 }}
-              className="w-full max-w-lg sm:max-w-2xl bg-zinc-900/80 backdrop-blur-md p-3 sm:p-5 rounded-2xl border border-zinc-800 flex flex-col"
+              className="w-full max-w-lg sm:max-w-2xl bg-[#1a2e22]/90 backdrop-blur-md p-3 sm:p-5 rounded-2xl border border-[#2d4a38] flex flex-col"
             >
               <div className="flex justify-between items-center mb-3 sm:mb-4">
                 <div>
                   <h2 className="text-base sm:text-xl font-bold text-white">Waiting Room</h2>
-                  <p className="text-zinc-500 text-[10px] sm:text-xs">Mode: 101 • {maxPlayers} Players</p>
+                  <p className="text-[#7a8f74] text-[10px] sm:text-xs">Mode: 101 • {maxPlayers} Players</p>
                 </div>
-                <div className="bg-zinc-950 border border-zinc-800 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg flex flex-col items-center relative group">
-                  <span className="text-[8px] sm:text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Code</span>
+                <div className="bg-[#0f2318] border border-[#2d4a38] px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg flex flex-col items-center relative group">
+                  <span className="text-[8px] sm:text-[10px] text-[#7a8f74] uppercase tracking-wider font-semibold">Code</span>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm sm:text-lg tracking-widest text-emerald-400 font-bold">{lobbyId}</span>
+                    <span className="font-mono text-sm sm:text-lg tracking-widest text-amber-400 font-bold">{lobbyId}</span>
                     <button
                       onClick={handleCopyLobbyId}
-                      className="p-1 rounded-md hover:bg-zinc-800 text-zinc-500 hover:text-emerald-400 transition-colors"
+                      className="p-1 rounded-md hover:bg-[#243a2c] text-[#7a8f74] hover:text-amber-400 transition-colors"
                       title="Copy Lobby ID"
                     >
-                      {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                      {copied ? <Check size={14} className="text-amber-500" /> : <Copy size={14} />}
                     </button>
                   </div>
                 </div>
@@ -982,21 +1118,21 @@ export default function App() {
                     <div
                       key={idx}
                       className={`relative rounded-xl border flex flex-col items-center justify-center p-2 sm:p-3 min-h-[80px] sm:min-h-[100px] transition-all ${player
-                        ? 'border-emerald-500/30 bg-emerald-500/5'
-                        : 'border-dashed border-zinc-700 bg-zinc-900/50'
+                        ? 'border-amber-500/30 bg-amber-500/5'
+                        : 'border-dashed border-[#2d4a38] bg-[#1a2e22]/50'
                         }`}
                     >
                       {player ? (
                         <>
-                          <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-zinc-800 flex items-center justify-center mb-1.5">
-                            <Users size={12} className="text-emerald-400 sm:w-4 sm:h-4" />
+                          <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-[#243a2c] flex items-center justify-center mb-1.5">
+                            <Users size={12} className="text-amber-400 sm:w-4 sm:h-4" />
                           </div>
                           <span className="font-semibold text-[10px] sm:text-xs text-center truncate w-full">{player.username}</span>
-                          {idx === 0 && <span className="text-[7px] sm:text-[8px] uppercase tracking-wider text-emerald-400 font-bold mt-0.5">Host</span>}
+                          {idx === 0 && <span className="text-[7px] sm:text-[8px] uppercase tracking-wider text-amber-400 font-bold mt-0.5">Host</span>}
                           {isHost && idx !== 0 && (
                             <button
                               onClick={() => handleKickPlayer(player.id)}
-                              className="absolute top-1 right-1 p-0.5 text-zinc-600 hover:text-red-400 transition-colors"
+                              className="absolute top-1 right-1 p-0.5 text-[#5a7054] hover:text-red-400 transition-colors"
                               title="Kick"
                             >
                               <X size={12} />
@@ -1005,15 +1141,15 @@ export default function App() {
                         </>
                       ) : (
                         <>
-                          <span className="text-zinc-600 font-medium text-[10px] sm:text-xs mb-2">Empty</span>
+                          <span className="text-[#5a7054] font-medium text-[10px] sm:text-xs mb-2">Empty</span>
                           <div className="flex flex-col gap-1 w-full">
-                            <button className="bg-zinc-800 hover:bg-zinc-700 text-[8px] sm:text-[10px] font-semibold py-1 rounded-md transition-colors w-full">
+                            <button className="bg-[#243a2c] hover:bg-[#2d4a38] text-[8px] sm:text-[10px] font-semibold py-1 rounded-md transition-colors w-full">
                               Invite
                             </button>
                             {isHost && (
                               <button
                                 onClick={handleAddBot}
-                                className="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 text-[8px] sm:text-[10px] font-semibold py-1 rounded-md transition-colors w-full"
+                                className="bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 text-[8px] sm:text-[10px] font-semibold py-1 rounded-md transition-colors w-full"
                               >
                                 Add Bot
                               </button>
@@ -1026,10 +1162,10 @@ export default function App() {
                 })}
               </div>
 
-              <div className="flex justify-between items-center pt-2 sm:pt-3 border-t border-zinc-800">
+              <div className="flex justify-between items-center pt-2 sm:pt-3 border-t border-[#2d4a38]">
                 <button
                   onClick={handleLeaveLobby}
-                  className="bg-transparent hover:bg-zinc-800 text-zinc-400 font-semibold py-1.5 px-3 sm:py-2 sm:px-5 rounded-lg transition-all text-[10px] sm:text-xs"
+                  className="bg-transparent hover:bg-[#243a2c] text-[#a8b5a0] font-semibold py-1.5 px-3 sm:py-2 sm:px-5 rounded-lg transition-all text-[10px] sm:text-xs"
                 >
                   Leave
                 </button>
@@ -1038,13 +1174,13 @@ export default function App() {
                   <button
                     disabled={lobbyPlayers.length < maxPlayers}
                     onClick={handleStartGame}
-                    className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-semibold py-1.5 px-4 sm:py-2 sm:px-6 rounded-lg transition-all flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs"
+                    className="bg-amber-600 hover:bg-amber-500 disabled:bg-[#243a2c] disabled:text-[#7a8f74] text-white font-semibold py-1.5 px-4 sm:py-2 sm:px-6 rounded-lg transition-all flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs"
                   >
                     <Play size={12} className="sm:w-3.5 sm:h-3.5" />
                     Start Game
                   </button>
                 ) : (
-                  <div className="text-zinc-500 text-[10px] sm:text-xs font-medium px-2">
+                  <div className="text-[#7a8f74] text-[10px] sm:text-xs font-medium px-2">
                     Waiting for host...
                   </div>
                 )}
@@ -1062,9 +1198,9 @@ export default function App() {
             >
               {!gameState ? (
                 <div className="flex-1 flex flex-col items-center justify-center">
-                  <div className="w-24 h-24 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
+                  <div className="w-24 h-24 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
                   <h2 className="text-2xl font-bold mb-2">Game Starting...</h2>
-                  <p className="text-zinc-400">Loading domino tiles and board</p>
+                  <p className="text-[#a8b5a0]">Loading domino tiles and board</p>
                 </div>
               ) : (
                 <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -1072,7 +1208,7 @@ export default function App() {
                   <div className="absolute top-2 right-2 sm:top-3 sm:right-3 z-50 flex flex-col gap-1.5 pointer-events-auto">
                     <button
                       onClick={toggleFullscreen}
-                      className="p-1.5 sm:p-2 rounded-lg bg-zinc-900/70 hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors backdrop-blur-sm border border-zinc-800/50"
+                      className="p-1.5 sm:p-2 rounded-lg bg-[#1a2e22]/80 hover:bg-[#243a2c] text-[#a8b5a0] hover:text-white transition-colors backdrop-blur-sm border border-[#2d4a38]/50"
                     >
                       {isFullscreen ? <Minimize size={14} className="sm:w-4 sm:h-4" /> : <Maximize size={14} className="sm:w-4 sm:h-4" />}
                     </button>
@@ -1083,7 +1219,7 @@ export default function App() {
                         setLobbyId('');
                         setGameState(null);
                       }}
-                      className="p-1.5 sm:p-2 rounded-lg bg-zinc-900/70 hover:bg-red-900/50 text-zinc-400 hover:text-red-400 transition-colors backdrop-blur-sm border border-zinc-800/50"
+                      className="p-1.5 sm:p-2 rounded-lg bg-[#1a2e22]/80 hover:bg-red-900/50 text-[#a8b5a0] hover:text-red-400 transition-colors backdrop-blur-sm border border-[#2d4a38]/50"
                       title="Exit Match"
                     >
                       <X size={14} className="sm:w-4 sm:h-4" />
@@ -1095,10 +1231,10 @@ export default function App() {
                     const opponents = gameState.players.filter((p: string) => p !== userId);
                     const opponentCapsule = (p: string, posClass: string) => (
                       <div key={p} className={`absolute z-40 ${posClass}`}>
-                        <div className="flex items-center gap-1.5 bg-zinc-900/70 backdrop-blur-sm border border-zinc-800/50 rounded-full px-2 py-0.5 sm:px-3 sm:py-1">
-                          <span className={`text-[9px] sm:text-xs font-semibold truncate max-w-[50px] sm:max-w-[80px] transition-colors ${gameState.players[gameState.turnIndex] === p ? 'text-emerald-400' : 'text-zinc-300'}`}>{lobbyPlayers.find(lp => lp.id === p)?.username || p}</span>
-                          <span className="text-[8px] sm:text-[10px] text-zinc-500">{gameState.opponentHandCounts[p]}🀰</span>
-                          <span className="text-[8px] sm:text-[10px] text-emerald-400 font-sans font-semibold">{gameState.scores[p]?.permanent || 0}/101</span>
+                        <div className="flex items-center gap-1.5 bg-[#1a2e22]/80 backdrop-blur-sm border border-[#2d4a38]/50 rounded-full px-2 py-0.5 sm:px-3 sm:py-1">
+                          <span className={`text-[9px] sm:text-xs font-semibold truncate max-w-[50px] sm:max-w-[80px] transition-colors ${gameState.players[gameState.turnIndex] === p ? 'text-amber-400' : 'text-[#d4ddd0]'}`}>{lobbyPlayers.find(lp => lp.id === p)?.username || p}</span>
+                          <span className="text-[8px] sm:text-[10px] text-[#7a8f74]">{gameState.opponentHandCounts[p]}🀰</span>
+                          <span className="text-[8px] sm:text-[10px] text-amber-400 font-sans font-semibold">{gameState.scores[p]?.permanent || 0}/101</span>
                         </div>
                       </div>
                     );
@@ -1131,8 +1267,8 @@ export default function App() {
                         onClick={() => socket?.emit('draw_market', { lobbyId }, (res: any) => res.error && alert(res.error))}
                         disabled={gameState.marketCount === 0}
                         className={`flex flex-col items-center gap-0.5 p-1.5 sm:p-2 rounded-lg backdrop-blur-sm border transition-colors ${gameState.marketCount > 0
-                          ? 'bg-zinc-900/70 border-zinc-800/50 text-zinc-300 hover:bg-zinc-800 hover:text-white cursor-pointer'
-                          : 'bg-zinc-900/30 border-zinc-800/20 text-zinc-600 cursor-not-allowed'
+                          ? 'bg-[#1a2e22]/80 border-[#2d4a38]/50 text-[#d4ddd0] hover:bg-[#243a2c] hover:text-white cursor-pointer'
+                          : 'bg-[#1a2e22]/30 border-[#2d4a38]/20 text-[#5a7054] cursor-not-allowed'
                           }`}
                         title={gameState.marketCount > 0 ? `Draw (${gameState.marketCount})` : 'Market empty'}
                       >
@@ -1144,9 +1280,9 @@ export default function App() {
 
                   {/* Bottom-left: current user info */}
                   <div className="absolute bottom-2 left-2 z-40 sm:bottom-3 sm:left-3">
-                    <div className="flex items-center gap-1.5 bg-zinc-900/70 backdrop-blur-sm border border-zinc-800/50 rounded-full px-2 py-0.5 sm:px-3 sm:py-1">
-                      <span className={`text-[9px] sm:text-xs font-semibold transition-colors ${gameState.players[gameState.turnIndex] === userId ? 'text-emerald-400' : 'text-zinc-300'}`}>{username}</span>
-                      <span className="text-[8px] sm:text-[10px] text-emerald-400 font-sans font-semibold">
+                    <div className="flex items-center gap-1.5 bg-[#1a2e22]/80 backdrop-blur-sm border border-[#2d4a38]/50 rounded-full px-2 py-0.5 sm:px-3 sm:py-1">
+                      <span className={`text-[9px] sm:text-xs font-semibold transition-colors ${gameState.players[gameState.turnIndex] === userId ? 'text-amber-400' : 'text-[#d4ddd0]'}`}>{username}</span>
+                      <span className="text-[8px] sm:text-[10px] text-amber-400 font-sans font-semibold">
                         {gameState.scores[userId]?.permanent || 0}{gameState.scores[userId]?.temporary > 0 && `+${gameState.scores[userId].temporary}`}/101
                       </span>
                     </div>
@@ -1155,15 +1291,15 @@ export default function App() {
                   {/* Board Area - full screen, no chrome */}
                   <div className="flex-1 flex flex-col items-center justify-center px-1 py-1 overflow-hidden relative w-full">
                     {gameState.status === 'finished' && (
-                      <div className="absolute inset-0 bg-zinc-950/90 z-20 flex flex-col items-center justify-center backdrop-blur-md p-4">
-                        <h2 className="text-2xl sm:text-4xl font-black text-emerald-400 mb-1 sm:mb-2 uppercase tracking-widest">Match Over!</h2>
-                        <p className="text-zinc-300 mb-4 sm:mb-8 text-base sm:text-xl">Ultimate Winner: <span className="font-bold text-white text-lg sm:text-2xl ml-1 sm:ml-2">{lobbyPlayers.find(lp => lp.id === gameState.lastWinner)?.username || gameState.lastWinner}</span></p>
+                      <div className="absolute inset-0 bg-[#0c1a12]/90 z-20 flex flex-col items-center justify-center backdrop-blur-md p-4">
+                        <h2 className="text-2xl sm:text-4xl font-black text-amber-400 mb-1 sm:mb-2 uppercase tracking-widest">Match Over!</h2>
+                        <p className="text-[#d4ddd0] mb-4 sm:mb-8 text-base sm:text-xl">Ultimate Winner: <span className="font-bold text-white text-lg sm:text-2xl ml-1 sm:ml-2">{lobbyPlayers.find(lp => lp.id === gameState.lastWinner)?.username || gameState.lastWinner}</span></p>
 
-                        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 sm:p-6 mb-4 sm:mb-8 min-w-[220px] sm:min-w-[300px] shadow-2xl">
-                          <h3 className="text-xs sm:text-sm font-bold text-zinc-500 uppercase tracking-wider mb-2 sm:mb-4 text-center">Final Scores</h3>
+                        <div className="bg-[#1a2e22] border border-[#2d4a38] rounded-xl p-3 sm:p-6 mb-4 sm:mb-8 min-w-[220px] sm:min-w-[300px] shadow-2xl">
+                          <h3 className="text-xs sm:text-sm font-bold text-[#7a8f74] uppercase tracking-wider mb-2 sm:mb-4 text-center">Final Scores</h3>
                           {gameState.players.map((p: string) => (
-                            <div key={p} className="flex justify-between items-center py-2 sm:py-3 border-b border-zinc-800/50 last:border-0">
-                              <span className={p === gameState.lastWinner ? 'text-emerald-400 font-bold text-sm sm:text-lg' : 'text-zinc-300 text-sm sm:text-lg'}>
+                            <div key={p} className="flex justify-between items-center py-2 sm:py-3 border-b border-[#2d4a38]/50 last:border-0">
+                              <span className={p === gameState.lastWinner ? 'text-amber-400 font-bold text-sm sm:text-lg' : 'text-[#d4ddd0] text-sm sm:text-lg'}>
                                 {lobbyPlayers.find(lp => lp.id === p)?.username || p}
                               </span>
                               <span className="font-sans text-white text-base sm:text-xl font-semibold">
@@ -1180,7 +1316,7 @@ export default function App() {
                             setLobbyId('');
                             setGameState(null);
                           }}
-                          className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 px-8 rounded-xl transition-colors"
+                          className="bg-[#243a2c] hover:bg-[#2d4a38] text-white font-bold py-3 px-8 rounded-xl transition-colors"
                         >
                           Return to Menu
                         </button>
@@ -1188,20 +1324,20 @@ export default function App() {
                     )}
 
                     {gameState.status === 'round_end' && (
-                      <div className="absolute inset-0 bg-zinc-950/90 z-50 flex flex-col items-center justify-center backdrop-blur-sm p-2 sm:p-4">
-                        <h2 className="text-xl sm:text-3xl font-bold text-emerald-400 mb-0.5 sm:mb-1">Round Over!</h2>
-                        <p className="text-zinc-300 mb-2 sm:mb-4 text-xs sm:text-lg">Winner: <span className="font-bold text-white">{lobbyPlayers.find(lp => lp.id === gameState.lastWinner)?.username || gameState.lastWinner}</span></p>
+                      <div className="absolute inset-0 bg-[#0c1a12]/90 z-50 flex flex-col items-center justify-center backdrop-blur-sm p-2 sm:p-4">
+                        <h2 className="text-xl sm:text-3xl font-bold text-amber-400 mb-0.5 sm:mb-1">Round Over!</h2>
+                        <p className="text-[#d4ddd0] mb-2 sm:mb-4 text-xs sm:text-lg">Winner: <span className="font-bold text-white">{lobbyPlayers.find(lp => lp.id === gameState.lastWinner)?.username || gameState.lastWinner}</span></p>
 
-                        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-2 sm:p-4 mb-2 sm:mb-4 min-w-[180px] sm:min-w-[250px] max-h-[40vh] overflow-y-auto">
-                          <h3 className="text-[10px] sm:text-sm font-bold text-zinc-500 uppercase tracking-wider mb-1 sm:mb-2 text-center">Current Scores</h3>
+                        <div className="bg-[#1a2e22] border border-[#2d4a38] rounded-xl p-2 sm:p-4 mb-2 sm:mb-4 min-w-[180px] sm:min-w-[250px] max-h-[40vh] overflow-y-auto">
+                          <h3 className="text-[10px] sm:text-sm font-bold text-[#7a8f74] uppercase tracking-wider mb-1 sm:mb-2 text-center">Current Scores</h3>
                           {gameState.players.map((p: string) => (
-                            <div key={p} className="flex justify-between items-center py-1 sm:py-2 border-b border-zinc-800/50 last:border-0">
-                              <span className={p === gameState.lastWinner ? 'text-emerald-400 font-bold text-xs sm:text-base' : 'text-zinc-300 text-xs sm:text-base'}>
+                            <div key={p} className="flex justify-between items-center py-1 sm:py-2 border-b border-[#2d4a38]/50 last:border-0">
+                              <span className={p === gameState.lastWinner ? 'text-amber-400 font-bold text-xs sm:text-base' : 'text-[#d4ddd0] text-xs sm:text-base'}>
                                 {lobbyPlayers.find(lp => lp.id === p)?.username || p}
                               </span>
                               <span className="font-sans text-white font-semibold text-xs sm:text-base">
                                 {gameState.scores[p]?.permanent || 0}
-                                {gameState.scores[p]?.temporary > 0 && <span className="text-zinc-500 text-[10px] sm:text-sm ml-1 font-sans">(+{gameState.scores[p].temporary})</span>}
+                                {gameState.scores[p]?.temporary > 0 && <span className="text-[#7a8f74] text-[10px] sm:text-sm ml-1 font-sans">(+{gameState.scores[p].temporary})</span>}
                               </span>
                             </div>
                           ))}
@@ -1210,7 +1346,7 @@ export default function App() {
                         {isHost && (
                           <button
                             onClick={() => socket?.emit('next_round', { lobbyId }, (res: any) => res.error && alert(res.error))}
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-6 sm:py-3 sm:px-10 rounded-xl text-sm sm:text-base shadow-lg shadow-emerald-900/20 z-[60] mt-2"
+                            className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-6 sm:py-3 sm:px-10 rounded-xl text-sm sm:text-base shadow-lg shadow-amber-900/20 z-[60] mt-2"
                           >
                             Next Round
                           </button>
@@ -1234,7 +1370,7 @@ export default function App() {
                         }
 
                         if (sequence.length === 0) {
-                          return <div className="text-zinc-600 italic font-medium mx-4">Waiting for opponent to start...</div>;
+                          return <div className="text-[#5a7054] italic font-medium mx-4">Waiting for opponent to start...</div>;
                         }
 
                         // Dynamic scaling and chunking - STRICT 2 ROW LIMIT
@@ -1254,7 +1390,7 @@ export default function App() {
                         const layout: any[] = [];
                         let i = 0;
                         let isLTR = true;
-                        
+
                         // Row 1
                         const row1Items = sequence.slice(i, i + currentChunkSize);
                         layout.push({ type: 'row', isLTR, items: row1Items });
@@ -1289,7 +1425,7 @@ export default function App() {
                                         return (
                                           <div key="left">
                                             <DroppableZone id="left" isVisible={true} scale={boardScale}>
-                                              <span className="text-zinc-500 font-bold text-[6px] sm:text-[10px] md:text-xs tracking-tighter sm:tracking-normal">LEFT</span>
+                                              <span className="text-[#7a8f74] font-bold text-[6px] sm:text-[10px] md:text-xs tracking-tighter sm:tracking-normal">LEFT</span>
                                             </DroppableZone>
                                           </div>
                                         );
@@ -1298,7 +1434,7 @@ export default function App() {
                                         return (
                                           <div key="right">
                                             <DroppableZone id="right" isVisible={true} scale={boardScale}>
-                                              <span className="text-zinc-500 font-bold text-[6px] sm:text-[10px] md:text-xs tracking-tighter sm:tracking-normal">RIGHT</span>
+                                              <span className="text-[#7a8f74] font-bold text-[6px] sm:text-[10px] md:text-xs tracking-tighter sm:tracking-normal">RIGHT</span>
                                             </DroppableZone>
                                           </div>
                                         );
@@ -1326,7 +1462,7 @@ export default function App() {
                                         return (
                                           <div key="left">
                                             <DroppableZone id="left" isVisible={true} scale={boardScale}>
-                                              <span className="text-zinc-500 font-bold text-[6px] sm:text-[10px] md:text-xs tracking-tighter sm:tracking-normal">LEFT</span>
+                                              <span className="text-[#7a8f74] font-bold text-[6px] sm:text-[10px] md:text-xs tracking-tighter sm:tracking-normal">LEFT</span>
                                             </DroppableZone>
                                           </div>
                                         );
@@ -1335,7 +1471,7 @@ export default function App() {
                                         return (
                                           <div key="right">
                                             <DroppableZone id="right" isVisible={true} scale={boardScale}>
-                                              <span className="text-zinc-500 font-bold text-[6px] sm:text-[10px] md:text-xs tracking-tighter sm:tracking-normal">RIGHT</span>
+                                              <span className="text-[#7a8f74] font-bold text-[6px] sm:text-[10px] md:text-xs tracking-tighter sm:tracking-normal">RIGHT</span>
                                             </DroppableZone>
                                           </div>
                                         );
@@ -1366,7 +1502,7 @@ export default function App() {
                     <button
                       onClick={() => socket?.emit('pass_turn', { lobbyId }, (res: any) => res.error && alert(res.error))}
                       disabled={gameState.marketCount > 0 || gameState.players[gameState.turnIndex] !== userId}
-                      className="bg-zinc-800/70 hover:bg-zinc-700 text-zinc-400 hover:text-white px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-md text-[8px] sm:text-xs font-semibold transition-colors backdrop-blur-sm border border-zinc-800/50 shrink-0 mb-0.5 disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="bg-[#243a2c]/70 hover:bg-[#2d4a38] text-[#a8b5a0] hover:text-white px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-md text-[8px] sm:text-xs font-semibold transition-colors backdrop-blur-sm border border-[#2d4a38]/50 shrink-0 mb-0.5 disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                       Pass
                     </button>
