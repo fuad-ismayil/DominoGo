@@ -144,7 +144,7 @@ export default function App() {
     const tileStr = active.id as string;
     const [t0, t1] = tileStr.split('-').map(Number);
     const tile: [number, number] = [t0, t1];
-    const end = over.id as 'left' | 'right';
+    const end = over.id as string; // 'left' | 'right' | 'north' | 'south'
 
     socket?.emit('play_tile', { lobbyId, tile, end }, (res: any) => {
       if (res.error) alert(res.error);
@@ -1004,7 +1004,7 @@ export default function App() {
 
               <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-medium text-[#a8b5a0] mb-3">Select Player Count</label>
+                  <label className="block text-sm font-medium text-[#a8b5a0] mb-3">Player Count</label>
                   <div className="grid grid-cols-3 gap-3">
                     {[2, 3, 4].map(num => (
                       <button
@@ -1495,6 +1495,8 @@ export default function App() {
                         );
                       })()}
                     </div>
+
+                    {/* 5-lik: North/South drop zones when spinner exists */}
                   </div>
 
                   {/* Bottom: Player Hand + Pass button - no background bar */}
@@ -1510,17 +1512,11 @@ export default function App() {
                       {(() => {
                         let requiredFirstTile: [number, number] | null = null;
                         if (gameState.board.length === 0 && gameState.roundNumber === 1) {
-                          if (gameState.mode === '101') {
-                            const doubles = [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [0, 0]];
-                            for (const d of doubles) {
-                              if (gameState.hands[userId]?.some((t: [number, number]) => t[0] === d[0] && t[1] === d[1])) {
-                                requiredFirstTile = d as [number, number];
-                                break;
-                              }
-                            }
-                          } else if (gameState.mode === '5-lik') {
-                            if (gameState.hands[userId]?.some((t: [number, number]) => (t[0] === 2 && t[1] === 3) || (t[0] === 3 && t[1] === 2))) {
-                              requiredFirstTile = [2, 3]; // Simplified check
+                          const doubles = [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [0, 0]];
+                          for (const d of doubles) {
+                            if (gameState.hands[userId]?.some((t: [number, number]) => t[0] === d[0] && t[1] === d[1])) {
+                              requiredFirstTile = d as [number, number];
+                              break;
                             }
                           }
                         }
@@ -1534,17 +1530,12 @@ export default function App() {
                             if (gameState.board.length === 0) {
                               if (gameState.roundNumber === 1) {
                                 if (requiredFirstTile) {
-                                  if (gameState.mode === '101') {
-                                    canPlayLeft = tile[0] === requiredFirstTile[0] && tile[1] === requiredFirstTile[1];
-                                  } else if (gameState.mode === '5-lik') {
-                                    canPlayLeft = (tile[0] === 2 && tile[1] === 3) || (tile[0] === 3 && tile[1] === 2);
-                                  }
+                                  canPlayLeft = tile[0] === requiredFirstTile[0] && tile[1] === requiredFirstTile[1];
                                 } else {
-                                  // If no required tile found but it's 101, they must play ANY double (if they have one, but they shouldn't based on logic)
-                                  canPlayLeft = gameState.mode === '101' ? tile[0] === tile[1] : true;
+                                  canPlayLeft = tile[0] === tile[1];
                                 }
                               } else {
-                                canPlayLeft = true; // Subsequent rounds can start with any tile
+                                canPlayLeft = true;
                               }
                             } else {
                               canPlayLeft = tile[0] === gameState.openEnds[0] || tile[1] === gameState.openEnds[0];

@@ -65,11 +65,12 @@ db.exec(`
 
 try {
   db.prepare("ALTER TABLE sessions ADD COLUMN expires_at DATETIME").run();
-  // Fill existing sessions with +30 days expiry
   db.prepare("UPDATE sessions SET expires_at = datetime('now', '+30 days') WHERE expires_at IS NULL").run();
-} catch (e) {
-  // column already exists
-}
+} catch (e) { }
+
+try {
+  db.prepare("ALTER TABLE lobbies ADD COLUMN game_mode TEXT NOT NULL DEFAULT '101'").run();
+} catch (e) { }
 
 // Prune expired sessions
 db.prepare("DELETE FROM sessions WHERE expires_at < datetime('now')").run();
@@ -581,7 +582,7 @@ app.post('/api/lobbies/:id/start', authenticate, (req, res) => {
   const players = db.prepare('SELECT user_id FROM lobby_players WHERE lobby_id = ? ORDER BY joined_at ASC').all(lobbyId) as any[];
   const playerIds = players.map(p => p.user_id);
 
-  const state = createGame(playerIds, '101'); // Default to 101 mode for now
+  const state = createGame(playerIds, '101');
 
   db.prepare('INSERT OR REPLACE INTO game_states (lobby_id, state_json) VALUES (?, ?)').run(lobbyId, JSON.stringify(state));
   db.prepare('UPDATE lobbies SET status = ? WHERE id = ?').run('playing', lobbyId);
