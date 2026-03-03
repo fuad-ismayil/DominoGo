@@ -29,11 +29,6 @@ A realistic look at what can be improved, what's feasible to add, and what limit
 
 ## 🔧 Medium-Term (Moderate Effort)
 
-### Game Mode: 5-lik (Fives)
-- The engine already has `5-lik` mode scaffolded in `engine.ts` but it's never selectable from the UI
-- Need: mode selection in Create Lobby, mid-round pip-sum scoring display
-- **Effort:** Medium — engine logic exists, mostly UI work
-
 ### Spectator Mode
 - Allow users to watch ongoing games without participating
 - Server already sanitizes hands per-user, so spectators would just see the board + hand counts
