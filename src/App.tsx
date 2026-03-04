@@ -1,13 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Maximize, Minimize, Users, UserPlus, Play, History, LogIn, Plus, LogOut, X, Layers, Trash2, Copy, Check, Shield, MonitorOff, AlertTriangle } from 'lucide-react';
+import { Maximize, Minimize, Users, UserPlus, Play, History, LogIn, Plus, LogOut, X, Layers, Trash2, Copy, Check, Shield, MonitorOff, AlertTriangle, SmilePlus, Send, ArrowLeft, UserMinus, Clock, Trophy } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { DndContext, useDraggable, useDroppable, DragEndEvent, DragStartEvent, TouchSensor, MouseSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { DominoTile } from './components/DominoTile';
 import { canPlayTile } from './game/engine';
+import { initAudio, playSound } from './utils/audio';
 
-type Screen = 'ENTRY' | 'LOGIN' | 'REGISTER' | 'MAIN_MENU' | 'CREATE_LOBBY' | 'JOIN_LOBBY' | 'LOBBY' | 'GAME' | 'UPGRADE_ACCOUNT';
+type FloatingReaction = { id: number; emoji: string; senderName: string; x: number };
+const REACTIONS = ['👍', '👎', '😤', '🎉', '😂', '🔥', '💀', '🤝'];
+let reactionIdCounter = 0;
+
+type Screen = 'ENTRY' | 'LOGIN' | 'REGISTER' | 'MAIN_MENU' | 'CREATE_LOBBY' | 'JOIN_LOBBY' | 'LOBBY' | 'GAME' | 'UPGRADE_ACCOUNT' | 'FRIENDS' | 'LEADERBOARD';
+
+type FriendInfo = { id: string; username: string; isOnline: boolean };
+type FriendRequest = { id: number; userId: string; username: string };
+type GameInviteToast = { id: number; lobbyId: string; senderUsername: string };
+type PlayerStats = { wins: number; losses: number; gamesPlayed: number; winRate: number; totalScore: number; avgScore: number };
+type LeaderboardEntry = { rank: number; userId: string; username: string; wins: number; losses: number; gamesPlayed: number; winRate: number; totalScore: number; avgScore: number };
 
 function DraggableTile({ id, isPlayable, children }: { id: string, isPlayable: boolean, children: React.ReactNode }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -94,6 +105,70 @@ export default function App() {
   const [matchHistory, setMatchHistory] = useState<any[]>([]);
   const [deletingMatchId, setDeletingMatchId] = useState<string | null>(null);
 
+  // Reactions state
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([]);
+  const reactionTimeoutRef = useRef<number | null>(null);
+
+  // Guest expiry timer
+  const [guestExpiresAt, setGuestExpiresAt] = useState<string | null>(null);
+  const [guestCountdown, setGuestCountdown] = useState('');
+
+  // Friend system state
+  const [friendsList, setFriendsList] = useState<FriendInfo[]>([]);
+  const [incomingRequests, setIncomingRequests] = useState<FriendRequest[]>([]);
+  const [outgoingRequests, setOutgoingRequests] = useState<FriendRequest[]>([]);
+  const [friendInput, setFriendInput] = useState('');
+  const [friendError, setFriendError] = useState('');
+  const [friendSuccess, setFriendSuccess] = useState('');
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [gameInviteToasts, setGameInviteToasts] = useState<GameInviteToast[]>([]);
+  let gameInviteIdCounter = useRef(0);
+
+  // Player stats & leaderboard
+  const [playerStats, setPlayerStats] = useState<PlayerStats | null>(null);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+
+  const fetchPlayerStats = async (uid?: string) => {
+    const id = uid || userId;
+    if (!id) return;
+    try {
+      const res = await fetch(`/api/stats/${id}`);
+      if (res.ok) setPlayerStats(await res.json());
+    } catch (e) { }
+  };
+
+  const fetchLeaderboard = async () => {
+    try {
+      const res = await fetch('/api/leaderboard');
+      if (res.ok) {
+        const data = await res.json();
+        setLeaderboard(data.leaderboard || []);
+      }
+    } catch (e) { }
+  };
+
+  const fetchFriends = async () => {
+    const token = localStorage.getItem('domino_token');
+    if (!token) return;
+    try {
+      const res = await fetch('/api/friends', { headers: { 'Authorization': `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setFriendsList(data.friends || []);
+        setIncomingRequests(data.incoming || []);
+        setOutgoingRequests(data.outgoing || []);
+        // Show pending game invites as toasts
+        if (data.pendingGameInvites?.length) {
+          setGameInviteToasts(prev => [
+            ...prev,
+            ...data.pendingGameInvites.filter((gi: any) => !prev.find(p => p.id === gi.id))
+          ]);
+        }
+      }
+    } catch (e) { }
+  };
+
   useEffect(() => {
     if (currentScreen === 'MAIN_MENU') {
       const token = localStorage.getItem('domino_token');
@@ -147,7 +222,7 @@ export default function App() {
     const end = over.id as string; // 'left' | 'right' | 'north' | 'south'
 
     socket?.emit('play_tile', { lobbyId, tile, end }, (res: any) => {
-      if (res.error) alert(res.error);
+      if (res.error) { playSound('error'); alert(res.error); }
     });
   };
 
@@ -172,6 +247,24 @@ export default function App() {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
+  // Audio trigger effect
+  const prevGameStateRef = useRef<any>(null);
+  useEffect(() => {
+    const prev = prevGameStateRef.current;
+    const state = gameState;
+    if (prev && state && currentScreen === 'GAME') {
+      if (state.board?.length > prev.board?.length) playSound('place');
+      else if (state.marketCount < prev.marketCount) playSound('draw');
+
+      if (state.status === 'round_end' && prev.status === 'playing') playSound(state.lastWinner === userId ? 'win' : 'lose');
+      if (state.status === 'finished' && prev.status !== 'finished') playSound(state.lastWinner === userId ? 'win' : 'lose');
+    }
+    prevGameStateRef.current = state;
+  }, [gameState, currentScreen, userId]);
+
+  // Initialize audio system on mount
+  useEffect(() => { initAudio(); }, []);
+
   // Check session on load
   useEffect(() => {
     const checkSession = async () => {
@@ -191,7 +284,9 @@ export default function App() {
           setUsername(data.user.username);
           setUserId(data.user.id);
           setIsGuest(data.user.isGuest);
+          if (data.user.guestExpiresAt) setGuestExpiresAt(data.user.guestExpiresAt);
           setCurrentScreen('MAIN_MENU');
+          fetchPlayerStats(data.user.id);
         } else {
           localStorage.removeItem('domino_token');
         }
@@ -204,6 +299,34 @@ export default function App() {
 
     checkSession();
   }, []);
+
+  // Guest expiry countdown timer
+  useEffect(() => {
+    if (!isGuest || !guestExpiresAt) {
+      setGuestCountdown('');
+      return;
+    }
+
+    const tick = () => {
+      const now = Date.now();
+      const expires = new Date(guestExpiresAt).getTime();
+      const diff = Math.max(0, expires - now);
+
+      if (diff === 0) {
+        setGuestCountdown('Expired');
+        return;
+      }
+
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      setGuestCountdown(`${hours}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`);
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [isGuest, guestExpiresAt]);
 
   // Socket initialization
   useEffect(() => {
@@ -223,9 +346,50 @@ export default function App() {
     });
 
     newSocket.on('game_state_update', (state) => {
-      setGameState(state);
+      setGameState((prev: any) => {
+        // Evaluate sounds outside the functional update by using the current state value
+        // But since we need prev safely, we can do it here but wrap playSound in a setTimeout
+        // to push it to the macrotask queue, ensuring it only runs once per actual update?
+        // Actually, a better way: functional update might run multiple times, 
+        // but the socket event itself only fires once. 
+        // We can capture the *current* gameState from a ref or just rely on the fact that 
+        // functional updates shouldn't have side effects.
+        return state;
+      });
+
+      // Since closures might have stale state, we can use a ref to track previous state for audio,
+      // OR we can just rely on the setGameState to update the component, and use a standard useEffect 
+      // block inside the component to watch for state.board / state.marketCount changes to play audio.
       setCurrentScreen('GAME');
     });
+
+    // Reaction listener
+    newSocket.on('reaction', ({ userId: senderId, emoji }) => {
+      const senderName = senderId;
+      const id = ++reactionIdCounter;
+      const x = 20 + Math.random() * 60;
+      setFloatingReactions(prev => [...prev, { id, emoji, senderName: senderId, x }]);
+      setTimeout(() => {
+        setFloatingReactions(prev => prev.filter(r => r.id !== id));
+      }, 2500);
+    });
+
+    // Friend system socket listeners
+    newSocket.on('friend_online', ({ userId: fid }) => {
+      setFriendsList(prev => prev.map(f => f.id === fid ? { ...f, isOnline: true } : f));
+    });
+    newSocket.on('friend_offline', ({ userId: fid }) => {
+      setFriendsList(prev => prev.map(f => f.id === fid ? { ...f, isOnline: false } : f));
+    });
+    newSocket.on('friend_request_received', () => { fetchFriends(); });
+    newSocket.on('friend_request_accepted', () => { fetchFriends(); });
+    newSocket.on('friend_removed', () => { fetchFriends(); });
+    newSocket.on('game_invitation', (invite: GameInviteToast) => {
+      setGameInviteToasts(prev => [...prev, invite]);
+    });
+
+    // Fetch friends on connect
+    fetchFriends();
 
     setSocket(newSocket);
 
@@ -805,64 +969,78 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 1.05 }}
-              className="w-full max-w-5xl h-full max-h-[450px] grid grid-cols-2 gap-4 items-stretch"
+              className="w-full max-w-5xl h-full max-h-[90vh] md:max-h-[450px] grid grid-cols-2 gap-2 md:gap-4 items-stretch overflow-y-auto p-2 md:p-0"
             >
-              <div className="bg-[#1a2e22]/90 backdrop-blur-md p-4 sm:p-6 rounded-2xl border border-[#2d4a38] flex flex-col justify-center h-full relative">
-                <div className="absolute top-4 left-4 text-xs sm:text-sm font-bold tracking-tighter text-amber-400 opacity-50">
+              <div className="bg-[#1a2e22]/90 backdrop-blur-md p-3 sm:p-4 md:p-6 rounded-2xl border border-[#2d4a38] flex flex-col justify-center h-full relative">
+                <div className="absolute top-2 md:top-4 left-3 md:left-4 text-[10px] sm:text-sm font-bold tracking-tighter text-amber-400 opacity-50">
                   DominoGo
                 </div>
-                <div className="absolute top-4 right-4 flex gap-2">
+                <div className="absolute top-2 md:top-4 right-2 md:right-4 flex gap-1.5 md:gap-2">
                   {!isGuest && (
                     <button
                       onClick={handleLogoutOthers}
-                      className="p-1.5 sm:p-2 rounded-full bg-[#0f2318]/50 hover:bg-[#243a2c] text-[#7a8f74] hover:text-amber-400 transition-colors border border-[#2d4a38]"
+                      className="p-1 sm:p-1.5 md:p-2 rounded-full bg-[#0f2318]/50 hover:bg-[#243a2c] text-[#7a8f74] hover:text-amber-400 transition-colors border border-[#2d4a38]"
                       title="Log out other devices"
                     >
-                      <Layers size={14} className="sm:w-5 sm:h-5" />
+                      <Layers size={12} className="sm:w-[14px] sm:h-[14px] md:w-5 md:h-5" />
                     </button>
                   )}
                   <button
                     onClick={handleLogout}
-                    className="p-1.5 sm:p-2 rounded-full bg-[#0f2318]/50 hover:bg-[#243a2c] text-[#7a8f74] hover:text-red-400 transition-colors border border-[#2d4a38]"
+                    className="p-1 sm:p-1.5 md:p-2 rounded-full bg-[#0f2318]/50 hover:bg-[#243a2c] text-[#7a8f74] hover:text-red-400 transition-colors border border-[#2d4a38]"
                     title="Logout"
                   >
-                    <LogOut size={14} className="sm:w-5 sm:h-5" />
+                    <LogOut size={12} className="sm:w-[14px] sm:h-[14px] md:w-5 md:h-5" />
                   </button>
                 </div>
-                <div className="mb-4 sm:mb-6">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h2 className="text-xl font-bold truncate">Hello, {username}</h2>
-                    {isGuest && <span className="shrink-0 bg-[#243a2c] text-[#a8b5a0] text-[10px] px-2 py-0.5 rounded-full uppercase font-bold">Guest</span>}
+                <div className="mb-2 sm:mb-4 md:mb-6 mt-6 md:mt-0">
+                  <div className="flex items-center gap-2 mb-0.5 sm:mb-1">
+                    <h2 className="text-base sm:text-xl font-bold truncate">Hello, {username}</h2>
+                    {isGuest && <span className="shrink-0 bg-[#243a2c] text-[#a8b5a0] text-[8px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full uppercase font-bold">Guest</span>}
                   </div>
                   {isGuest ? (
                     <button
                       onClick={() => { setInputName(username); setPassword(''); setErrorMsg(''); setCurrentScreen('UPGRADE_ACCOUNT'); }}
-                      className="w-full mt-2 bg-amber-500/10 border border-amber-500/30 rounded-xl p-2.5 sm:p-3 text-left hover:bg-amber-500/15 transition-colors group"
+                      className="w-full mt-1 sm:mt-2 bg-amber-500/10 border border-amber-500/30 rounded-lg sm:rounded-xl p-2 sm:p-2.5 md:p-3 text-left hover:bg-amber-500/15 transition-colors group"
                     >
-                      <div className="flex items-start gap-2">
-                        <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+                      <div className="flex items-start gap-1.5 sm:gap-2">
+                        <AlertTriangle size={14} className="text-amber-400 shrink-0 mt-0.5 sm:w-4 sm:h-4" />
                         <div>
-                          <p className="text-amber-300 font-semibold text-xs sm:text-sm">Your progress is at risk!</p>
-                          <p className="text-[#a8b5a0] text-[9px] sm:text-xs mt-0.5 leading-relaxed">Create an account to save your game history, pick a clean username, and log in from any device.</p>
-                          <span className="inline-flex items-center gap-1 mt-1 text-amber-400 font-semibold text-[10px] sm:text-xs group-hover:text-amber-300 transition-colors">Create Account <span>→</span></span>
+                          <p className="text-amber-300 font-semibold text-[10px] sm:text-xs md:text-sm">Your progress is at risk!</p>
+                          <p className="text-[#a8b5a0] text-[8px] sm:text-[9px] md:text-xs mt-0.5 leading-relaxed">Create an account to save your game history and log in from any device.</p>
+                          <span className="inline-flex items-center gap-1 mt-0.5 sm:mt-1 text-amber-400 font-semibold text-[9px] sm:text-[10px] md:text-xs group-hover:text-amber-300 transition-colors">Create Account <span>→</span></span>
                         </div>
                       </div>
                     </button>
                   ) : (
-                    <p className="text-[#a8b5a0] text-xs sm:text-sm">What would you like to play today?</p>
+                    <p className="text-[#a8b5a0] text-[10px] sm:text-xs md:text-sm">What would you like to play today?</p>
+                  )}
+                  {isGuest && guestCountdown && (
+                    <div className="mt-1 sm:mt-1.5 flex items-center gap-1.5 text-[8px] sm:text-[9px] md:text-[11px] text-[#7a8f74]">
+                      <div className="w-1.5 h-1.5 rounded-full bg-red-400/60 animate-pulse" />
+                      <span>Guest account expires in <span className="font-mono font-semibold text-amber-400/80">{guestCountdown}</span></span>
+                    </div>
+                  )}
+                  {playerStats && playerStats.gamesPlayed > 0 && (
+                    <div className="mt-1 sm:mt-2 flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                      <span className="bg-green-500/15 text-green-400 text-[8px] sm:text-[9px] md:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md">{playerStats.wins}W</span>
+                      <span className="bg-red-500/15 text-red-400 text-[8px] sm:text-[9px] md:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md">{playerStats.losses}L</span>
+                      <span className="bg-amber-500/15 text-amber-400 text-[8px] sm:text-[9px] md:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md">{playerStats.winRate}%</span>
+                      <span className="text-[8px] sm:text-[9px] text-[#5a7054]">{playerStats.gamesPlayed} games</span>
+                    </div>
                   )}
                 </div>
 
-                <div className="space-y-2 sm:space-y-3">
+                <div className="space-y-1.5 sm:space-y-2 md:space-y-3">
                   <button
                     onClick={() => setCurrentScreen('CREATE_LOBBY')}
-                    className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2.5 sm:py-3 rounded-xl transition-all flex items-center justify-between px-4 sm:px-5 group"
+                    className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-1.5 sm:py-2 md:py-3 rounded-lg sm:rounded-xl transition-all flex items-center justify-between px-3 sm:px-4 md:px-5 group"
                   >
                     <div className="flex items-center gap-2 sm:gap-3">
-                      <Plus size={16} className="sm:w-[18px] sm:h-[18px]" />
-                      <span className="text-sm sm:text-base">Create Lobby</span>
+                      <Plus size={14} className="sm:w-4 sm:h-4 md:w-[18px] md:h-[18px]" />
+                      <span className="text-xs sm:text-sm md:text-base">Create Lobby</span>
                     </div>
-                    <span className="opacity-0 group-hover:opacity-100 transition-opacity text-amber-200 text-[10px] sm:text-xs">Host a game</span>
+                    <span className="opacity-0 group-hover:opacity-100 transition-opacity text-amber-200 text-[9px] sm:text-[10px] md:text-xs">Host a game</span>
                   </button>
 
                   <button
@@ -870,17 +1048,44 @@ export default function App() {
                       setErrorMsg('');
                       setCurrentScreen('JOIN_LOBBY');
                     }}
-                    className="w-full bg-[#243a2c] hover:bg-[#2d4a38] text-white font-semibold py-2.5 sm:py-3 rounded-xl transition-all flex items-center justify-between px-4 sm:px-5"
+                    className="w-full bg-[#243a2c] hover:bg-[#2d4a38] text-white font-semibold py-1.5 sm:py-2 md:py-3 rounded-lg sm:rounded-xl transition-all flex items-center justify-between px-3 sm:px-4 md:px-5"
                   >
                     <div className="flex items-center gap-2 sm:gap-3">
-                      <Users size={16} className="sm:w-[18px] sm:h-[18px]" />
-                      <span className="text-sm sm:text-base">Join Lobby</span>
+                      <Users size={14} className="sm:w-4 sm:h-4 md:w-[18px] md:h-[18px]" />
+                      <span className="text-xs sm:text-sm md:text-base">Join Lobby</span>
+                    </div>
+                  </button>
+
+                  {!isGuest && (
+                    <button
+                      onClick={() => { setFriendError(''); setFriendSuccess(''); fetchFriends(); setCurrentScreen('FRIENDS'); }}
+                      className="w-full bg-[#243a2c] hover:bg-[#2d4a38] text-white font-semibold py-1.5 sm:py-2 md:py-3 rounded-lg sm:rounded-xl transition-all flex items-center justify-between px-3 sm:px-4 md:px-5"
+                    >
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <UserPlus size={14} className="sm:w-4 sm:h-4 md:w-[18px] md:h-[18px]" />
+                        <span className="text-xs sm:text-sm md:text-base">Friends</span>
+                      </div>
+                      {(incomingRequests.length > 0 || gameInviteToasts.length > 0) && (
+                        <span className="bg-amber-500 text-white text-[9px] sm:text-[10px] font-bold rounded-full w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center">
+                          {incomingRequests.length + gameInviteToasts.length}
+                        </span>
+                      )}
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => { fetchLeaderboard(); setCurrentScreen('LEADERBOARD'); }}
+                    className="w-full bg-[#243a2c] hover:bg-[#2d4a38] text-white font-semibold py-1.5 sm:py-2 md:py-3 rounded-lg sm:rounded-xl transition-all flex items-center justify-between px-3 sm:px-4 md:px-5"
+                  >
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <Trophy size={14} className="sm:w-4 sm:h-4 md:w-[18px] md:h-[18px]" />
+                      <span className="text-xs sm:text-sm md:text-base">Leaderboard</span>
                     </div>
                   </button>
                 </div>
               </div>
 
-              <div className="bg-[#1a2e22]/90 backdrop-blur-md p-4 sm:p-6 rounded-2xl border border-[#2d4a38] flex flex-col h-full min-h-0">
+              <div className="bg-[#1a2e22]/90 backdrop-blur-md p-3 sm:p-4 md:p-6 rounded-2xl border border-[#2d4a38] flex flex-col h-full min-h-0">
                 <div className="flex items-center gap-2 mb-4 text-[#a8b5a0] shrink-0">
                   <History size={18} />
                   <h3 className="font-semibold uppercase tracking-wider text-sm">Match History</h3>
@@ -987,6 +1192,263 @@ export default function App() {
                       );
                     })}
                   </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {currentScreen === 'FRIENDS' && (
+            <motion.div
+              key="friends"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.05 }}
+              className="w-full max-w-md bg-[#1a2e22]/90 backdrop-blur-md p-4 sm:p-6 rounded-2xl border border-[#2d4a38] flex flex-col max-h-[85vh]"
+            >
+              <div className="flex items-center justify-between mb-4 shrink-0">
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setCurrentScreen('MAIN_MENU')} className="p-1.5 rounded-lg hover:bg-[#243a2c] text-[#7a8f74] hover:text-white transition-colors">
+                    <ArrowLeft size={18} />
+                  </button>
+                  <h2 className="text-lg font-bold">Friends</h2>
+                </div>
+                <span className="text-[10px] text-[#7a8f74] uppercase tracking-wider">
+                  {friendsList.length} friend{friendsList.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1 custom-scrollbar">
+                {/* Send Friend Request */}
+                <div>
+                  <h3 className="text-[10px] uppercase tracking-wider text-[#7a8f74] font-bold mb-2">Add Friend</h3>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={friendInput}
+                      onChange={e => { setFriendInput(e.target.value); setFriendError(''); setFriendSuccess(''); }}
+                      placeholder="Enter username..."
+                      className="flex-1 bg-[#0f2318] border border-[#2d4a38] rounded-lg px-3 py-2 text-sm text-white placeholder-[#5a7054] focus:border-amber-500 outline-none"
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          (async () => {
+                            if (!friendInput.trim()) return;
+                            setFriendError(''); setFriendSuccess('');
+                            const token = localStorage.getItem('domino_token');
+                            const res = await fetch('/api/friends/request', {
+                              method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                              body: JSON.stringify({ username: friendInput.trim() })
+                            });
+                            const data = await res.json();
+                            if (res.ok) { setFriendInput(''); setFriendSuccess('Request sent!'); fetchFriends(); }
+                            else setFriendError(data.error || 'Failed');
+                          })();
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={async () => {
+                        if (!friendInput.trim()) return;
+                        setFriendError(''); setFriendSuccess('');
+                        const token = localStorage.getItem('domino_token');
+                        const res = await fetch('/api/friends/request', {
+                          method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                          body: JSON.stringify({ username: friendInput.trim() })
+                        });
+                        const data = await res.json();
+                        if (res.ok) { setFriendInput(''); setFriendSuccess('Request sent!'); fetchFriends(); }
+                        else setFriendError(data.error || 'Failed');
+                      }}
+                      className="bg-amber-600 hover:bg-amber-500 text-white px-3 rounded-lg transition-colors"
+                    >
+                      <Send size={16} />
+                    </button>
+                  </div>
+                  {friendError && <p className="text-red-400 text-[10px] mt-1">{friendError}</p>}
+                  {friendSuccess && <p className="text-green-400 text-[10px] mt-1">{friendSuccess}</p>}
+                </div>
+
+                {/* Incoming Requests */}
+                {incomingRequests.length > 0 && (
+                  <div>
+                    <h3 className="text-[10px] uppercase tracking-wider text-[#7a8f74] font-bold mb-2">Incoming Requests</h3>
+                    <div className="space-y-1.5">
+                      {incomingRequests.map(req => (
+                        <div key={req.id} className="flex items-center justify-between bg-[#243a2c]/50 rounded-lg px-3 py-2 border border-amber-500/20">
+                          <span className="text-sm font-medium">{req.username}</span>
+                          <div className="flex gap-1.5">
+                            <button
+                              onClick={async () => {
+                                const token = localStorage.getItem('domino_token');
+                                await fetch('/api/friends/accept', {
+                                  method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                                  body: JSON.stringify({ friendshipId: req.id })
+                                });
+                                fetchFriends();
+                              }}
+                              className="bg-green-600 hover:bg-green-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-md transition-colors"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              onClick={async () => {
+                                const token = localStorage.getItem('domino_token');
+                                await fetch('/api/friends/reject', {
+                                  method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                                  body: JSON.stringify({ friendshipId: req.id })
+                                });
+                                fetchFriends();
+                              }}
+                              className="bg-red-600/30 hover:bg-red-600/50 text-red-300 text-[10px] font-bold px-2.5 py-1 rounded-md transition-colors"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Outgoing Requests */}
+                {outgoingRequests.length > 0 && (
+                  <div>
+                    <h3 className="text-[10px] uppercase tracking-wider text-[#7a8f74] font-bold mb-2">Sent Requests</h3>
+                    <div className="space-y-1.5">
+                      {outgoingRequests.map(req => (
+                        <div key={req.id} className="flex items-center justify-between bg-[#243a2c]/30 rounded-lg px-3 py-2 border border-[#2d4a38]/50">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-[#a8b5a0]">{req.username}</span>
+                            <span className="flex items-center gap-1 text-[9px] text-amber-400/60 bg-amber-500/10 px-1.5 py-0.5 rounded-md">
+                              <Clock size={8} /> Waiting
+                            </span>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              const token = localStorage.getItem('domino_token');
+                              await fetch('/api/friends/cancel', {
+                                method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                                body: JSON.stringify({ friendshipId: req.id })
+                              });
+                              fetchFriends();
+                            }}
+                            className="text-[#7a8f74] hover:text-red-400 transition-colors p-1"
+                            title="Cancel request"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Friends List */}
+                <div>
+                  <h3 className="text-[10px] uppercase tracking-wider text-[#7a8f74] font-bold mb-2">Friends</h3>
+                  {friendsList.length === 0 ? (
+                    <div className="text-center py-6 text-[#5a7054] text-sm">
+                      <UserPlus size={24} className="mx-auto mb-2 opacity-50" />
+                      <p>No friends yet</p>
+                      <p className="text-[10px] mt-0.5">Add friends by username above</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {friendsList.sort((a, b) => (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0)).map(friend => (
+                        <div key={friend.id} className="flex items-center justify-between bg-[#243a2c]/30 rounded-lg px-3 py-2 border border-[#2d4a38]/50">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${friend.isOnline ? 'bg-green-400' : 'bg-[#5a7054]'}`} />
+                            <span className="text-sm font-medium">{friend.username}</span>
+                            <span className={`text-[9px] ${friend.isOnline ? 'text-green-400' : 'text-[#5a7054]'}`}>
+                              {friend.isOnline ? 'Online' : 'Offline'}
+                            </span>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              if (!confirm(`Remove ${friend.username} from friends?`)) return;
+                              const token = localStorage.getItem('domino_token');
+                              await fetch(`/api/friends/${friend.id}`, {
+                                method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
+                              });
+                              fetchFriends();
+                            }}
+                            className="text-[#7a8f74] hover:text-red-400 transition-colors p-1"
+                            title="Remove friend"
+                          >
+                            <UserMinus size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {currentScreen === 'LEADERBOARD' && (
+            <motion.div
+              key="leaderboard"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.05 }}
+              className="w-full max-w-lg bg-[#1a2e22]/90 backdrop-blur-md p-4 sm:p-6 rounded-2xl border border-[#2d4a38] flex flex-col max-h-[85vh]"
+            >
+              <div className="flex items-center justify-between mb-4 shrink-0">
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setCurrentScreen('MAIN_MENU')} className="p-1.5 rounded-lg hover:bg-[#243a2c] text-[#7a8f74] hover:text-white transition-colors">
+                    <ArrowLeft size={18} />
+                  </button>
+                  <Trophy size={18} className="text-amber-400" />
+                  <h2 className="text-lg font-bold">Leaderboard</h2>
+                </div>
+                <span className="text-[10px] text-[#7a8f74] uppercase tracking-wider">Top 50</span>
+              </div>
+
+              <div className="flex-1 overflow-y-auto custom-scrollbar">
+                {leaderboard.length === 0 ? (
+                  <div className="text-center py-8 text-[#5a7054]">
+                    <Trophy size={32} className="mx-auto mb-3 opacity-30" />
+                    <p className="text-sm">No games played yet</p>
+                    <p className="text-[10px] mt-1">Play matches to appear here!</p>
+                  </div>
+                ) : (
+                  <table className="w-full text-[10px] sm:text-xs">
+                    <thead>
+                      <tr className="text-[#7a8f74] uppercase tracking-wider border-b border-[#2d4a38]">
+                        <th className="text-left py-2 px-1 font-semibold">#</th>
+                        <th className="text-left py-2 px-1 font-semibold">Player</th>
+                        <th className="text-center py-2 px-1 font-semibold">W</th>
+                        <th className="text-center py-2 px-1 font-semibold">L</th>
+                        <th className="text-center py-2 px-1 font-semibold">Win%</th>
+                        <th className="text-center py-2 px-1 font-semibold">Avg</th>
+                        <th className="text-center py-2 px-1 font-semibold">GP</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {leaderboard.map(entry => {
+                        const isMe = entry.userId === userId;
+                        return (
+                          <tr
+                            key={entry.userId}
+                            className={`border-b border-[#2d4a38]/30 transition-colors ${isMe ? 'bg-amber-500/10' : 'hover:bg-[#243a2c]/30'}`}
+                          >
+                            <td className={`py-2 px-1 font-bold ${entry.rank <= 3 ? 'text-amber-400' : 'text-[#7a8f74]'}`}>
+                              {entry.rank <= 3 ? ['🥇', '🥈', '🥉'][entry.rank - 1] : entry.rank}
+                            </td>
+                            <td className={`py-2 px-1 font-medium truncate max-w-[120px] ${isMe ? 'text-amber-400' : 'text-white'}`}>
+                              {entry.username}{isMe && <span className="text-[8px] ml-1 text-amber-400/60">(you)</span>}
+                            </td>
+                            <td className="text-center py-2 px-1 text-green-400 font-semibold">{entry.wins}</td>
+                            <td className="text-center py-2 px-1 text-red-400/80">{entry.losses}</td>
+                            <td className="text-center py-2 px-1 text-amber-300 font-semibold">{entry.winRate}%</td>
+                            <td className="text-center py-2 px-1 text-[#a8b5a0]">{entry.avgScore}</td>
+                            <td className="text-center py-2 px-1 text-[#7a8f74]">{entry.gamesPlayed}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 )}
               </div>
             </motion.div>
@@ -1143,7 +1605,7 @@ export default function App() {
                         <>
                           <span className="text-[#5a7054] font-medium text-[10px] sm:text-xs mb-2">Empty</span>
                           <div className="flex flex-col gap-1 w-full">
-                            <button className="bg-[#243a2c] hover:bg-[#2d4a38] text-[8px] sm:text-[10px] font-semibold py-1 rounded-md transition-colors w-full">
+                            <button onClick={() => { fetchFriends(); setShowInviteModal(true); }} className="bg-[#243a2c] hover:bg-[#2d4a38] text-[8px] sm:text-[10px] font-semibold py-1 rounded-md transition-colors w-full">
                               Invite
                             </button>
                             {isHost && (
@@ -1224,6 +1686,64 @@ export default function App() {
                     >
                       <X size={14} className="sm:w-4 sm:h-4" />
                     </button>
+                    {/* Reaction picker button */}
+                    <button
+                      onClick={() => setShowReactionPicker(prev => !prev)}
+                      className="p-1.5 sm:p-2 rounded-lg bg-[#1a2e22]/80 hover:bg-[#243a2c] text-[#a8b5a0] hover:text-white transition-colors backdrop-blur-sm border border-[#2d4a38]/50"
+                      title="Send Reaction"
+                    >
+                      <SmilePlus size={14} className="sm:w-4 sm:h-4" />
+                    </button>
+                  </div>
+
+                  {/* Reaction picker dropdown */}
+                  <AnimatePresence>
+                    {showReactionPicker && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.8, y: -10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.8, y: -10 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute top-14 right-2 sm:top-[4.5rem] sm:right-3 z-50 bg-[#1a2e22]/95 backdrop-blur-md border border-[#2d4a38] rounded-xl p-1.5 sm:p-2 shadow-2xl pointer-events-auto"
+                      >
+                        <div className="grid grid-cols-4 gap-1">
+                          {REACTIONS.map(emoji => (
+                            <button
+                              key={emoji}
+                              onClick={() => {
+                                socket?.emit('send_reaction', { lobbyId, emoji });
+                                setShowReactionPicker(false);
+                              }}
+                              className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg hover:bg-[#243a2c] active:scale-90 transition-all text-base sm:text-xl"
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Floating reactions overlay */}
+                  <div className="absolute inset-0 z-[60] pointer-events-none overflow-hidden">
+                    <AnimatePresence>
+                      {floatingReactions.map(r => (
+                        <motion.div
+                          key={r.id}
+                          initial={{ opacity: 1, y: '70vh', scale: 0.5 }}
+                          animate={{ opacity: 0, y: '10vh', scale: 1.3 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 2.2, ease: 'easeOut' }}
+                          style={{ left: `${r.x}%` }}
+                          className="absolute flex flex-col items-center"
+                        >
+                          <span className="text-3xl sm:text-5xl drop-shadow-lg">{r.emoji}</span>
+                          <span className="text-[8px] sm:text-[10px] text-white/70 font-semibold mt-0.5 bg-black/30 px-1.5 py-0.5 rounded-full backdrop-blur-sm whitespace-nowrap">
+                            {lobbyPlayers.find(lp => lp.id === r.senderName)?.username || r.senderName}
+                          </span>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
                   </div>
 
                   {/* Opponent info capsules - positioned dynamically */}
@@ -1264,7 +1784,7 @@ export default function App() {
                   {maxPlayers < 4 && (
                     <div className="absolute left-2 top-1/2 -translate-y-1/2 z-40 sm:left-3">
                       <button
-                        onClick={() => socket?.emit('draw_market', { lobbyId }, (res: any) => res.error && alert(res.error))}
+                        onClick={() => socket?.emit('draw_market', { lobbyId }, (res: any) => { if (res.error) { playSound('error'); alert(res.error); } })}
                         disabled={gameState.marketCount === 0}
                         className={`flex flex-col items-center gap-0.5 p-1.5 sm:p-2 rounded-lg backdrop-blur-sm border transition-colors ${gameState.marketCount > 0
                           ? 'bg-[#1a2e22]/80 border-[#2d4a38]/50 text-[#d4ddd0] hover:bg-[#243a2c] hover:text-white cursor-pointer'
@@ -1291,35 +1811,48 @@ export default function App() {
                   {/* Board Area - full screen, no chrome */}
                   <div className="flex-1 flex flex-col items-center justify-center px-1 py-1 overflow-hidden relative w-full">
                     {gameState.status === 'finished' && (
-                      <div className="absolute inset-0 bg-[#0c1a12]/90 z-20 flex flex-col items-center justify-center backdrop-blur-md p-4">
-                        <h2 className="text-2xl sm:text-4xl font-black text-amber-400 mb-1 sm:mb-2 uppercase tracking-widest">Match Over!</h2>
-                        <p className="text-[#d4ddd0] mb-4 sm:mb-8 text-base sm:text-xl">Ultimate Winner: <span className="font-bold text-white text-lg sm:text-2xl ml-1 sm:ml-2">{lobbyPlayers.find(lp => lp.id === gameState.lastWinner)?.username || gameState.lastWinner}</span></p>
+                      <div className="fixed inset-0 bg-[#0c1a12]/95 z-[100] flex flex-col items-center justify-center backdrop-blur-md p-2 sm:p-4">
+                        <h2 className="text-base sm:text-2xl font-black text-amber-400 mb-0.5 sm:mb-1 uppercase tracking-widest">Match Over!</h2>
+                        <p className="text-[#d4ddd0] mb-2 sm:mb-4 text-[10px] sm:text-sm">Winner: <span className="font-bold text-white text-xs sm:text-base ml-0.5 sm:ml-1">{lobbyPlayers.find(lp => lp.id === gameState.lastWinner)?.username || gameState.lastWinner}</span></p>
 
-                        <div className="bg-[#1a2e22] border border-[#2d4a38] rounded-xl p-3 sm:p-6 mb-4 sm:mb-8 min-w-[220px] sm:min-w-[300px] shadow-2xl">
-                          <h3 className="text-xs sm:text-sm font-bold text-[#7a8f74] uppercase tracking-wider mb-2 sm:mb-4 text-center">Final Scores</h3>
+                        <div className="bg-[#1a2e22] border border-[#2d4a38] rounded-lg sm:rounded-xl p-2 sm:p-4 mb-2 sm:mb-4 min-w-[160px] sm:min-w-[250px] max-h-[35vh] overflow-y-auto shadow-2xl">
+                          <h3 className="text-[8px] sm:text-xs font-bold text-[#7a8f74] uppercase tracking-wider mb-1 sm:mb-2 text-center">Final Scores</h3>
                           {gameState.players.map((p: string) => (
-                            <div key={p} className="flex justify-between items-center py-2 sm:py-3 border-b border-[#2d4a38]/50 last:border-0">
-                              <span className={p === gameState.lastWinner ? 'text-amber-400 font-bold text-sm sm:text-lg' : 'text-[#d4ddd0] text-sm sm:text-lg'}>
+                            <div key={p} className="flex justify-between items-center py-1 sm:py-2 border-b border-[#2d4a38]/50 last:border-0 gap-4">
+                              <span className={p === gameState.lastWinner ? 'text-amber-400 font-bold text-[10px] sm:text-sm' : 'text-[#d4ddd0] text-[10px] sm:text-sm'}>
                                 {lobbyPlayers.find(lp => lp.id === p)?.username || p}
                               </span>
-                              <span className="font-sans text-white text-base sm:text-xl font-semibold">
+                              <span className="font-sans text-white text-xs sm:text-base font-semibold">
                                 {gameState.scores[p]?.permanent || 0}
                               </span>
                             </div>
                           ))}
                         </div>
 
-                        <button
-                          onClick={() => {
-                            socket?.emit('leave_lobby', lobbyId);
-                            setCurrentScreen('MAIN_MENU');
-                            setLobbyId('');
-                            setGameState(null);
-                          }}
-                          className="bg-[#243a2c] hover:bg-[#2d4a38] text-white font-bold py-3 px-8 rounded-xl transition-colors"
-                        >
-                          Return to Menu
-                        </button>
+                        <div className="flex items-center gap-2 sm:gap-3 z-[101]">
+                          {isHost && (
+                            <button
+                              onClick={() => socket?.emit('rematch', { lobbyId }, (res: any) => { if (res.error) alert(res.error); })}
+                              className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-1.5 px-4 sm:py-2.5 sm:px-6 rounded-lg sm:rounded-xl text-xs sm:text-sm transition-colors shadow-lg shadow-amber-900/20"
+                            >
+                              Rematch
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              socket?.emit('leave_lobby', lobbyId);
+                              setCurrentScreen('MAIN_MENU');
+                              setLobbyId('');
+                              setGameState(null);
+                            }}
+                            className="bg-[#243a2c] hover:bg-[#2d4a38] text-white font-bold py-1.5 px-4 sm:py-2.5 sm:px-6 rounded-lg sm:rounded-xl text-xs sm:text-sm transition-colors"
+                          >
+                            Return to Menu
+                          </button>
+                        </div>
+                        {!isHost && (
+                          <p className="text-[#7a8f74] text-[9px] sm:text-xs mt-1.5">Host can start a rematch</p>
+                        )}
                       </div>
                     )}
 
@@ -1502,7 +2035,7 @@ export default function App() {
                   {/* Bottom: Player Hand + Pass button - no background bar */}
                   <div className="px-1 py-0 sm:px-2 sm:py-0.5 flex items-end justify-center gap-1 shrink-0 w-full relative mb-0.5">
                     <button
-                      onClick={() => socket?.emit('pass_turn', { lobbyId }, (res: any) => res.error && alert(res.error))}
+                      onClick={() => socket?.emit('pass_turn', { lobbyId }, (res: any) => { if (res.error) { playSound('error'); alert(res.error); } })}
                       disabled={gameState.marketCount > 0 || gameState.players[gameState.turnIndex] !== userId}
                       className="bg-[#243a2c]/70 hover:bg-[#2d4a38] text-[#a8b5a0] hover:text-white px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-md text-[8px] sm:text-xs font-semibold transition-colors backdrop-blur-sm border border-[#2d4a38]/50 shrink-0 mb-0.5 disabled:opacity-30 disabled:cursor-not-allowed"
                     >
@@ -1578,6 +2111,110 @@ export default function App() {
           )}
 
         </AnimatePresence>
+
+        {/* Invite Friend Modal */}
+        {showInviteModal && (
+          <div className="fixed inset-0 bg-black/60 z-[90] flex items-center justify-center p-4" onClick={() => setShowInviteModal(false)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-[#1a2e22] border border-[#2d4a38] rounded-2xl p-4 sm:p-6 max-w-sm w-full max-h-[70vh] flex flex-col"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4 shrink-0">
+                <h3 className="text-base font-bold">Invite Friend</h3>
+                <button onClick={() => setShowInviteModal(false)} className="text-[#7a8f74] hover:text-white transition-colors p-1">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto space-y-1.5">
+                {friendsList.length === 0 ? (
+                  <div className="text-center py-6 text-[#5a7054] text-sm">
+                    <Users size={24} className="mx-auto mb-2 opacity-50" />
+                    <p>No friends to invite</p>
+                    <p className="text-[10px] mt-0.5">Add friends from the Friends menu</p>
+                  </div>
+                ) : (
+                  friendsList.sort((a, b) => (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0)).map(friend => {
+                    const isInLobby = lobbyPlayers.some(p => p.id === friend.id);
+                    return (
+                      <div key={friend.id} className="flex items-center justify-between bg-[#243a2c]/30 rounded-lg px-3 py-2.5 border border-[#2d4a38]/50">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${friend.isOnline ? 'bg-green-400' : 'bg-[#5a7054]'}`} />
+                          <span className="text-sm font-medium">{friend.username}</span>
+                          <span className={`text-[9px] ${friend.isOnline ? 'text-green-400' : 'text-[#5a7054]'}`}>
+                            {friend.isOnline ? 'Online' : 'Offline'}
+                          </span>
+                        </div>
+                        {isInLobby ? (
+                          <span className="text-[9px] text-green-400 bg-green-500/10 px-2 py-0.5 rounded-md">In Lobby</span>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              socket?.emit('invite_to_lobby', { lobbyId, friendUserId: friend.id }, (res: any) => {
+                                if (res.error) alert(res.error);
+                                else setShowInviteModal(false);
+                              });
+                            }}
+                            className="bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-bold px-3 py-1 rounded-md transition-colors"
+                          >
+                            Invite
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Game Invitation Toasts */}
+        {gameInviteToasts.length > 0 && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[110] flex flex-col gap-2 w-[90vw] max-w-sm">
+            {gameInviteToasts.map(toast => (
+              <motion.div
+                key={toast.id}
+                initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                className="bg-[#1a2e22] border border-amber-500/30 rounded-xl p-3 shadow-2xl shadow-black/50"
+              >
+                <p className="text-sm text-white mb-2"><span className="font-bold text-amber-400">{toast.senderUsername}</span> invited you to a game!</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      socket?.emit('accept_game_invite', { inviteId: toast.id }, (res: any) => {
+                        if (res.error) { alert(res.error); return; }
+                        setGameInviteToasts(prev => prev.filter(t => t.id !== toast.id));
+                        setLobbyId(res.lobbyId);
+                        setLobbyPlayers(res.players);
+                        setMaxPlayers(res.maxPlayers);
+                        setIsHost(res.creatorId === userId);
+                        socket?.emit('join_lobby', res.lobbyId);
+                        setCurrentScreen('LOBBY');
+                      });
+                    }}
+                    className="flex-1 bg-green-600 hover:bg-green-500 text-white text-xs font-bold py-1.5 rounded-lg transition-colors"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={() => {
+                      socket?.emit('reject_game_invite', { inviteId: toast.id }, () => { });
+                      setGameInviteToasts(prev => prev.filter(t => t.id !== toast.id));
+                    }}
+                    className="flex-1 bg-red-600/30 hover:bg-red-600/50 text-red-300 text-xs font-bold py-1.5 rounded-lg transition-colors"
+                  >
+                    Reject
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

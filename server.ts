@@ -61,6 +61,38 @@ db.exec(`
   INSERT OR IGNORE INTO users (id, username, is_guest) VALUES ('ai_1', 'AI Bot 1', 1);
   INSERT OR IGNORE INTO users (id, username, is_guest) VALUES ('ai_2', 'AI Bot 2', 1);
   INSERT OR IGNORE INTO users (id, username, is_guest) VALUES ('ai_3', 'AI Bot 3', 1);
+
+  CREATE TABLE IF NOT EXISTS friendships (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sender_id TEXT NOT NULL,
+    receiver_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(sender_id, receiver_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS game_invitations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lobby_id TEXT NOT NULL,
+    sender_id TEXT NOT NULL,
+    receiver_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (lobby_id) REFERENCES lobbies(id) ON DELETE CASCADE,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS player_stats (
+    user_id TEXT PRIMARY KEY,
+    wins INTEGER NOT NULL DEFAULT 0,
+    losses INTEGER NOT NULL DEFAULT 0,
+    total_score INTEGER NOT NULL DEFAULT 0,
+    games_played INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
 `);
 
 try {
@@ -72,14 +104,79 @@ try {
   db.prepare("ALTER TABLE lobbies ADD COLUMN game_mode TEXT NOT NULL DEFAULT '101'").run();
 } catch (e) { }
 
+// Add last_active_at column for guest expiry tracking
+try {
+  db.prepare("ALTER TABLE users ADD COLUMN last_active_at DATETIME").run();
+  db.prepare("UPDATE users SET last_active_at = CURRENT_TIMESTAMP WHERE last_active_at IS NULL").run();
+} catch (e) { }
+
 // Prune expired sessions
 db.prepare("DELETE FROM sessions WHERE expires_at < datetime('now')").run();
+
+// Clean up stale guest accounts (inactive for 24+ hours)
+function cleanupStaleGuests() {
+  try {
+    // Delete sessions for stale guests
+    db.prepare(`
+      DELETE FROM sessions WHERE user_id IN (
+        SELECT id FROM users 
+        WHERE is_guest = 1 
+        AND id NOT LIKE 'ai_%'
+        AND last_active_at < datetime('now', '-24 hours')
+      )
+    `).run();
+
+    // Delete lobby_players entries for stale guests
+    db.prepare(`
+      DELETE FROM lobby_players WHERE user_id IN (
+        SELECT id FROM users 
+        WHERE is_guest = 1 
+        AND id NOT LIKE 'ai_%'
+        AND last_active_at < datetime('now', '-24 hours')
+      )
+    `).run();
+
+    // Delete the guest users themselves
+    const result = db.prepare(`
+      DELETE FROM users 
+      WHERE is_guest = 1 
+      AND id NOT LIKE 'ai_%'
+      AND last_active_at < datetime('now', '-24 hours')
+    `).run();
+
+    if (result.changes > 0) {
+      console.log(`Cleaned up ${result.changes} stale guest account(s)`);
+    }
+  } catch (e) {
+    console.error('Guest cleanup error:', e);
+  }
+}
+
+// Run cleanup on startup and every 30 minutes
+cleanupStaleGuests();
+setInterval(cleanupStaleGuests, 30 * 60 * 1000);
 
 const app = express();
 const PORT = 3000;
 let io: Server;
 
 app.use(express.json());
+
+// Track online users: userId -> Set of socketIds
+const onlineUsers = new Map<string, Set<string>>();
+
+function isUserOnline(userId: string): boolean {
+  const sockets = onlineUsers.get(userId);
+  return !!sockets && sockets.size > 0;
+}
+
+function getUserFriendIds(userId: string): string[] {
+  const rows = db.prepare(`
+    SELECT CASE WHEN sender_id = ? THEN receiver_id ELSE sender_id END as friend_id
+    FROM friendships WHERE status = 'accepted' AND (sender_id = ? OR receiver_id = ?)
+  `).all(userId, userId, userId) as any[];
+  return rows.map(r => r.friend_id);
+}
 
 // Helper functions
 function getSanitizedState(state: any, userId: string) {
@@ -117,6 +214,42 @@ function updateGameState(lobbyId: string, state: any) {
   db.prepare('UPDATE game_states SET state_json = ?, updated_at = CURRENT_TIMESTAMP WHERE lobby_id = ?').run(JSON.stringify(state), lobbyId);
   if (state.status === 'finished') {
     db.prepare('UPDATE lobbies SET status = ? WHERE id = ?').run('finished', lobbyId);
+    recordMatchStats(state);
+  }
+}
+
+function recordMatchStats(state: any) {
+  try {
+    const winner = state.lastWinner;
+    const players: string[] = state.players || [];
+
+    for (const playerId of players) {
+      if (playerId.startsWith('ai_')) continue; // Skip AI bots
+
+      const isWinner = playerId === winner;
+      const score = state.scores?.[playerId]?.permanent || 0;
+
+      // Upsert player_stats
+      db.prepare(`
+        INSERT INTO player_stats (user_id, wins, losses, total_score, games_played)
+        VALUES (?, ?, ?, ?, 1)
+        ON CONFLICT(user_id) DO UPDATE SET
+          wins = wins + ?,
+          losses = losses + ?,
+          total_score = total_score + ?,
+          games_played = games_played + 1
+      `).run(
+        playerId,
+        isWinner ? 1 : 0,
+        isWinner ? 0 : 1,
+        score,
+        isWinner ? 1 : 0,
+        isWinner ? 0 : 1,
+        score
+      );
+    }
+  } catch (e) {
+    console.error('Failed to record match stats:', e);
   }
 }
 
@@ -368,7 +501,19 @@ app.delete('/api/matches/:id', authenticate, (req, res) => {
 });
 
 app.get('/api/auth/me', authenticate, (req, res) => {
-  res.json({ user: { ...((req as any).user), isGuest: !!(req as any).user.is_guest } });
+  const user = (req as any).user;
+
+  // Update last_active_at to reset the 24h guest expiry timer
+  db.prepare('UPDATE users SET last_active_at = CURRENT_TIMESTAMP WHERE id = ?').run(user.id);
+
+  // Calculate guest expiry time (24h from now, since we just reset the timer)
+  let guestExpiresAt = null;
+  if (user.is_guest && !user.id.startsWith('ai_')) {
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    guestExpiresAt = expiresAt.toISOString();
+  }
+
+  res.json({ user: { ...user, isGuest: !!user.is_guest, guestExpiresAt } });
 });
 
 app.post('/api/auth/logout', authenticate, (req, res) => {
@@ -596,6 +741,198 @@ app.post('/api/lobbies/:id/start', authenticate, (req, res) => {
   res.json({ success: true });
 });
 
+// ===== FRIEND SYSTEM API =====
+
+app.post('/api/friends/request', authenticate, (req, res) => {
+  const user = (req as any).user;
+  if (user.is_guest) return res.status(403).json({ error: 'Create an account to use the friend system' });
+
+  const { username } = req.body;
+  if (!username) return res.status(400).json({ error: 'Username is required' });
+
+  const target = db.prepare('SELECT id, is_guest FROM users WHERE username = ?').get(username) as any;
+  if (!target) return res.status(404).json({ error: 'User not found' });
+  if (target.is_guest) return res.status(400).json({ error: 'Cannot add guest users as friends' });
+  if (target.id === user.id) return res.status(400).json({ error: 'Cannot add yourself' });
+
+  // Check if friendship already exists (in either direction)
+  const existing = db.prepare(
+    'SELECT * FROM friendships WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)'
+  ).get(user.id, target.id, target.id, user.id) as any;
+
+  if (existing) {
+    if (existing.status === 'accepted') return res.status(400).json({ error: 'Already friends' });
+    return res.status(400).json({ error: 'Friend request already pending' });
+  }
+
+  db.prepare('INSERT INTO friendships (sender_id, receiver_id) VALUES (?, ?)').run(user.id, target.id);
+
+  // Notify target in real-time if online
+  if (io) {
+    io.to(`user_${target.id}`).emit('friend_request_received', { id: user.id, username: user.username });
+  }
+
+  res.json({ success: true });
+});
+
+app.post('/api/friends/accept', authenticate, (req, res) => {
+  const user = (req as any).user;
+  const { friendshipId } = req.body;
+
+  const friendship = db.prepare('SELECT * FROM friendships WHERE id = ? AND receiver_id = ? AND status = ?').get(friendshipId, user.id, 'pending') as any;
+  if (!friendship) return res.status(404).json({ error: 'Request not found' });
+
+  db.prepare('UPDATE friendships SET status = ? WHERE id = ?').run('accepted', friendshipId);
+
+  // Notify sender in real-time
+  if (io) {
+    io.to(`user_${friendship.sender_id}`).emit('friend_request_accepted', { id: user.id, username: user.username });
+  }
+
+  res.json({ success: true });
+});
+
+app.post('/api/friends/reject', authenticate, (req, res) => {
+  const user = (req as any).user;
+  const { friendshipId } = req.body;
+
+  const friendship = db.prepare('SELECT * FROM friendships WHERE id = ? AND receiver_id = ? AND status = ?').get(friendshipId, user.id, 'pending') as any;
+  if (!friendship) return res.status(404).json({ error: 'Request not found' });
+
+  db.prepare('DELETE FROM friendships WHERE id = ?').run(friendshipId);
+  res.json({ success: true });
+});
+
+app.post('/api/friends/cancel', authenticate, (req, res) => {
+  const user = (req as any).user;
+  const { friendshipId } = req.body;
+
+  const friendship = db.prepare('SELECT * FROM friendships WHERE id = ? AND sender_id = ? AND status = ?').get(friendshipId, user.id, 'pending') as any;
+  if (!friendship) return res.status(404).json({ error: 'Request not found' });
+
+  db.prepare('DELETE FROM friendships WHERE id = ?').run(friendshipId);
+  res.json({ success: true });
+});
+
+app.delete('/api/friends/:targetUserId', authenticate, (req, res) => {
+  const user = (req as any).user;
+  const targetId = req.params.targetUserId;
+
+  const result = db.prepare(
+    'DELETE FROM friendships WHERE status = ? AND ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))'
+  ).run('accepted', user.id, targetId, targetId, user.id);
+
+  if (result.changes === 0) return res.status(404).json({ error: 'Friendship not found' });
+
+  // Notify the other user
+  if (io) {
+    io.to(`user_${targetId}`).emit('friend_removed', { userId: user.id });
+  }
+
+  res.json({ success: true });
+});
+
+app.get('/api/friends', authenticate, (req, res) => {
+  const user = (req as any).user;
+  if (user.is_guest) return res.json({ friends: [], incoming: [], outgoing: [], pendingGameInvites: [] });
+
+  // Accepted friends
+  const friendRows = db.prepare(`
+    SELECT f.id as friendshipId,
+      CASE WHEN f.sender_id = ? THEN f.receiver_id ELSE f.sender_id END as friend_id,
+      CASE WHEN f.sender_id = ? THEN u2.username ELSE u1.username END as username
+    FROM friendships f
+    JOIN users u1 ON f.sender_id = u1.id
+    JOIN users u2 ON f.receiver_id = u2.id
+    WHERE f.status = 'accepted' AND (f.sender_id = ? OR f.receiver_id = ?)
+  `).all(user.id, user.id, user.id, user.id) as any[];
+
+  const friends = friendRows.map(r => ({
+    id: r.friend_id,
+    username: r.username,
+    isOnline: isUserOnline(r.friend_id)
+  }));
+
+  // Incoming pending requests
+  const incoming = db.prepare(`
+    SELECT f.id, f.sender_id as userId, u.username
+    FROM friendships f JOIN users u ON f.sender_id = u.id
+    WHERE f.receiver_id = ? AND f.status = 'pending'
+  `).all(user.id) as any[];
+
+  // Outgoing pending requests
+  const outgoing = db.prepare(`
+    SELECT f.id, f.receiver_id as userId, u.username
+    FROM friendships f JOIN users u ON f.receiver_id = u.id
+    WHERE f.sender_id = ? AND f.status = 'pending'
+  `).all(user.id) as any[];
+
+  // Pending game invitations for this user
+  const pendingGameInvites = db.prepare(`
+    SELECT gi.id, gi.lobby_id as lobbyId, u.username as senderUsername
+    FROM game_invitations gi JOIN users u ON gi.sender_id = u.id
+    WHERE gi.receiver_id = ? AND gi.status = 'pending'
+    AND gi.lobby_id IN (SELECT id FROM lobbies WHERE status IN ('waiting', 'playing'))
+  `).all(user.id) as any[];
+
+  res.json({ friends, incoming, outgoing, pendingGameInvites });
+});
+
+// ===== PLAYER STATS & LEADERBOARD =====
+
+app.get('/api/stats/:userId', (req, res) => {
+  const stats = db.prepare(`
+    SELECT ps.*, u.username FROM player_stats ps
+    JOIN users u ON ps.user_id = u.id
+    WHERE ps.user_id = ?
+  `).get(req.params.userId) as any;
+
+  if (!stats) {
+    const user = db.prepare('SELECT username FROM users WHERE id = ?').get(req.params.userId) as any;
+    return res.json({
+      username: user?.username || 'Unknown',
+      wins: 0, losses: 0, totalScore: 0, gamesPlayed: 0, winRate: 0, avgScore: 0
+    });
+  }
+
+  res.json({
+    username: stats.username,
+    wins: stats.wins,
+    losses: stats.losses,
+    totalScore: stats.total_score,
+    gamesPlayed: stats.games_played,
+    winRate: stats.games_played > 0 ? Math.round((stats.wins / stats.games_played) * 100) : 0,
+    avgScore: stats.games_played > 0 ? Math.round(stats.total_score / stats.games_played) : 0
+  });
+});
+
+app.get('/api/leaderboard', (req, res) => {
+  const rows = db.prepare(`
+    SELECT ps.user_id, ps.wins, ps.losses, ps.total_score, ps.games_played, u.username
+    FROM player_stats ps
+    JOIN users u ON ps.user_id = u.id
+    WHERE u.is_guest = 0 AND ps.user_id NOT LIKE 'ai_%' AND ps.games_played >= 1
+    ORDER BY ps.wins DESC, 
+      CASE WHEN ps.games_played > 0 THEN CAST(ps.wins AS FLOAT) / ps.games_played ELSE 0 END DESC,
+      ps.total_score DESC
+    LIMIT 50
+  `).all() as any[];
+
+  const leaderboard = rows.map((r, idx) => ({
+    rank: idx + 1,
+    userId: r.user_id,
+    username: r.username,
+    wins: r.wins,
+    losses: r.losses,
+    gamesPlayed: r.games_played,
+    winRate: r.games_played > 0 ? Math.round((r.wins / r.games_played) * 100) : 0,
+    totalScore: r.total_score,
+    avgScore: r.games_played > 0 ? Math.round(r.total_score / r.games_played) : 0
+  }));
+
+  res.json({ leaderboard });
+});
+
 async function startServer() {
   const httpServer = http.createServer(app);
   io = new Server(httpServer, {
@@ -613,6 +950,36 @@ async function startServer() {
 
   io.on('connection', (socket) => {
     const userId = socket.data.userId;
+
+    // ===== Online presence tracking =====
+    socket.join(`user_${userId}`);
+    if (!onlineUsers.has(userId)) {
+      onlineUsers.set(userId, new Set());
+    }
+    onlineUsers.get(userId)!.add(socket.id);
+
+    // If this is the user's first socket, broadcast online to friends
+    if (onlineUsers.get(userId)!.size === 1) {
+      const friendIds = getUserFriendIds(userId);
+      for (const fid of friendIds) {
+        io.to(`user_${fid}`).emit('friend_online', { userId });
+      }
+    }
+
+    socket.on('disconnect', () => {
+      const sockets = onlineUsers.get(userId);
+      if (sockets) {
+        sockets.delete(socket.id);
+        if (sockets.size === 0) {
+          onlineUsers.delete(userId);
+          // Broadcast offline to friends
+          const friendIds = getUserFriendIds(userId);
+          for (const fid of friendIds) {
+            io.to(`user_${fid}`).emit('friend_offline', { userId });
+          }
+        }
+      }
+    });
 
     socket.on('join_lobby', (lobbyId) => {
       socket.join(`lobby_${lobbyId}`);
@@ -706,6 +1073,139 @@ async function startServer() {
         if (callback) callback({ error: err.message });
       }
     });
+
+    // Quick reactions — broadcast emoji to all players in the lobby
+    const ALLOWED_REACTIONS = ['👍', '👎', '😤', '🎉', '😂', '🔥', '💀', '🤝'];
+    socket.on('send_reaction', ({ lobbyId, emoji }) => {
+      if (!ALLOWED_REACTIONS.includes(emoji)) return;
+      io.to(`lobby_${lobbyId}`).emit('reaction', { userId, emoji });
+    });
+
+    // Rematch — host can restart game with same players
+    socket.on('rematch', ({ lobbyId }, callback) => {
+      try {
+        const lobby = db.prepare('SELECT * FROM lobbies WHERE id = ?').get(lobbyId) as any;
+        if (!lobby) return callback && callback({ error: 'Lobby not found' });
+        if (lobby.creator_id !== userId) return callback && callback({ error: 'Only the host can start a rematch' });
+
+        const row = db.prepare('SELECT state_json FROM game_states WHERE lobby_id = ?').get(lobbyId) as any;
+        if (row) {
+          const oldState = JSON.parse(row.state_json);
+          if (oldState.status !== 'finished') return callback && callback({ error: 'Game is not finished yet' });
+        }
+
+        const players = db.prepare('SELECT user_id FROM lobby_players WHERE lobby_id = ? ORDER BY joined_at ASC').all(lobbyId) as any[];
+        const playerIds = players.map((p: any) => p.user_id);
+
+        const state = createGame(playerIds, '101');
+
+        db.prepare('UPDATE game_states SET state_json = ?, updated_at = CURRENT_TIMESTAMP WHERE lobby_id = ?').run(JSON.stringify(state), lobbyId);
+        db.prepare('UPDATE lobbies SET status = ? WHERE id = ?').run('playing', lobbyId);
+
+        io.to(`lobby_${lobbyId}`).emit('game_started');
+        broadcastGameState(lobbyId, state);
+        checkAndRunAITurn(lobbyId, state);
+
+        if (callback) callback({ success: true });
+      } catch (err: any) {
+        if (callback) callback({ error: err.message });
+      }
+    });
+
+    // ===== Game Invitation Socket Events =====
+    socket.on('invite_to_lobby', ({ lobbyId, friendUserId }, callback) => {
+      try {
+        // Verify they're friends
+        const friendship = db.prepare(
+          "SELECT * FROM friendships WHERE status = 'accepted' AND ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))"
+        ).get(userId, friendUserId, friendUserId, userId) as any;
+        if (!friendship) return callback && callback({ error: 'Not friends' });
+
+        // Verify lobby exists
+        const lobby = db.prepare('SELECT * FROM lobbies WHERE id = ?').get(lobbyId) as any;
+        if (!lobby) return callback && callback({ error: 'Lobby not found' });
+
+        // Check for existing pending invite
+        const existingInvite = db.prepare(
+          "SELECT * FROM game_invitations WHERE lobby_id = ? AND receiver_id = ? AND status = 'pending'"
+        ).get(lobbyId, friendUserId) as any;
+        if (existingInvite) return callback && callback({ error: 'Already invited' });
+
+        // Create the invitation
+        const senderUser = db.prepare('SELECT username FROM users WHERE id = ?').get(userId) as any;
+        db.prepare('INSERT INTO game_invitations (lobby_id, sender_id, receiver_id) VALUES (?, ?, ?)').run(lobbyId, userId, friendUserId);
+
+        // Notify the friend in real-time
+        const invite = db.prepare('SELECT last_insert_rowid() as id').get() as any;
+        io.to(`user_${friendUserId}`).emit('game_invitation', {
+          id: invite.id,
+          lobbyId,
+          senderUsername: senderUser.username
+        });
+
+        if (callback) callback({ success: true });
+      } catch (err: any) {
+        if (callback) callback({ error: err.message });
+      }
+    });
+
+    socket.on('accept_game_invite', ({ inviteId }, callback) => {
+      try {
+        const invite = db.prepare(
+          "SELECT * FROM game_invitations WHERE id = ? AND receiver_id = ? AND status = 'pending'"
+        ).get(inviteId, userId) as any;
+        if (!invite) return callback && callback({ error: 'Invitation not found' });
+
+        db.prepare("UPDATE game_invitations SET status = 'accepted' WHERE id = ?").run(inviteId);
+
+        // Auto-join the lobby
+        const lobby = db.prepare('SELECT * FROM lobbies WHERE id = ?').get(invite.lobby_id) as any;
+        if (!lobby) return callback && callback({ error: 'Lobby no longer exists' });
+
+        const players = db.prepare('SELECT * FROM lobby_players WHERE lobby_id = ?').all(invite.lobby_id) as any[];
+        if (players.length >= lobby.max_players && !players.find((p: any) => p.user_id === userId)) {
+          return callback && callback({ error: 'Lobby is full' });
+        }
+
+        db.prepare('INSERT OR IGNORE INTO lobby_players (lobby_id, user_id) VALUES (?, ?)').run(invite.lobby_id, userId);
+
+        const updatedPlayers = db.prepare(`
+          SELECT u.username, u.id FROM lobby_players lp
+          JOIN users u ON lp.user_id = u.id WHERE lp.lobby_id = ? ORDER BY lp.joined_at ASC
+        `).all(invite.lobby_id) as any[];
+
+        io.to(`lobby_${invite.lobby_id}`).emit('lobby_updated', { players: updatedPlayers });
+
+        // Notify the sender
+        io.to(`user_${invite.sender_id}`).emit('game_invite_accepted', { userId, lobbyId: invite.lobby_id });
+
+        if (callback) callback({
+          success: true,
+          lobbyId: invite.lobby_id,
+          players: updatedPlayers,
+          maxPlayers: lobby.max_players,
+          creatorId: lobby.creator_id
+        });
+      } catch (err: any) {
+        if (callback) callback({ error: err.message });
+      }
+    });
+
+    socket.on('reject_game_invite', ({ inviteId }, callback) => {
+      try {
+        const invite = db.prepare(
+          "SELECT * FROM game_invitations WHERE id = ? AND receiver_id = ? AND status = 'pending'"
+        ).get(inviteId, userId) as any;
+        if (!invite) return callback && callback({ error: 'Invitation not found' });
+
+        db.prepare("UPDATE game_invitations SET status = 'rejected' WHERE id = ?").run(inviteId);
+
+        if (callback) callback({ success: true });
+      } catch (err: any) {
+        if (callback) callback({ error: err.message });
+      }
+    });
+
   });
 
   // Vite middleware for development

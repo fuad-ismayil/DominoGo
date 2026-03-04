@@ -20,7 +20,7 @@ const DotPattern = ({ count, horizontal, scale = 1 }: { count: number, horizonta
   const dotStyle = { width: `${dotSize}px`, height: `${dotSize}px` };
 
   if (count === 1) return <div className="w-full h-full flex items-center justify-center"><div className={dotClass} style={dotStyle} /></div>;
-  if (count === 2) return <div className={`w-full h-full flex justify-between p-0.5 sm:p-1 ${horizontal ? 'items-center' : 'flex-col'}`}><div className={dotClass} style={dotStyle} /><div className={dotClass} style={dotStyle} /></div>;
+  if (count === 2) return <div className={`w-full h-full flex justify-between p-0.5 sm:p-1 ${horizontal ? 'items-center' : 'flex-col'}`}><div className={`self-start ${dotClass}`} style={dotStyle} /><div className={`self-end ${dotClass}`} style={dotStyle} /></div>;
   if (count === 3) return <div className="w-full h-full flex flex-col justify-between p-0.5 sm:p-1"><div className={`self-start ${dotClass}`} style={dotStyle} /><div className={`self-center ${dotClass}`} style={dotStyle} /><div className={`self-end ${dotClass}`} style={dotStyle} /></div>;
   if (count === 4) return (
     <div className="w-full h-full flex flex-col justify-between p-0.5 sm:p-1">
