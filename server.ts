@@ -165,6 +165,14 @@ app.use(express.json());
 // Track online users: userId -> Set of socketIds
 const onlineUsers = new Map<string, Set<string>>();
 
+// Turn timer system: 30s per human turn
+const TURN_TIMER_MS = 30000;
+const turnTimers = new Map<string, NodeJS.Timeout>(); // lobbyId -> timeout
+const turnDeadlines = new Map<string, number>(); // lobbyId -> epoch ms deadline
+
+// Stop game voting system
+const stopVotes = new Map<string, Set<string>>(); // lobbyId -> set of human player userIds who voted
+
 function isUserOnline(userId: string): boolean {
   const sockets = onlineUsers.get(userId);
   return !!sockets && sockets.size > 0;
@@ -179,7 +187,66 @@ function getUserFriendIds(userId: string): string[] {
 }
 
 // Helper functions
-function getSanitizedState(state: any, userId: string) {
+function clearTurnTimer(lobbyId: string) {
+  const existing = turnTimers.get(lobbyId);
+  if (existing) {
+    clearTimeout(existing);
+    turnTimers.delete(lobbyId);
+  }
+  turnDeadlines.delete(lobbyId);
+}
+
+function startTurnTimer(lobbyId: string, state: any) {
+  clearTurnTimer(lobbyId);
+
+  // Don't start timers for non-playing states
+  if (state.status !== 'playing') return;
+
+  const currentPlayer = state.players[state.turnIndex];
+
+  // Don't start timer for AI — AI has its own 1.5s delay
+  if (currentPlayer.startsWith('ai_')) return;
+
+  // Don't start timer if only 1 human player (solo vs AI) — no need to rush
+  const humanPlayers = state.players.filter((p: string) => !p.startsWith('ai_'));
+  if (humanPlayers.length <= 1) return;
+
+  const deadline = Date.now() + TURN_TIMER_MS;
+  turnDeadlines.set(lobbyId, deadline);
+
+  const timer = setTimeout(() => {
+    try {
+      const row = db.prepare('SELECT state_json FROM game_states WHERE lobby_id = ?').get(lobbyId) as any;
+      if (!row) return;
+      let currentState = JSON.parse(row.state_json);
+
+      // Verify it's still this player's turn and game is still playing
+      if (currentState.status !== 'playing' || currentState.players[currentState.turnIndex] !== currentPlayer) return;
+
+      // Auto-draw if market available, otherwise auto-pass
+      const drawCount = currentState.players.length === 2 ? 2 : (currentState.players.length === 3 ? 1 : 0);
+      if (drawCount > 0 && currentState.market.length > 0) {
+        currentState = drawFromMarket(currentState, currentPlayer);
+      } else {
+        currentState = passTurn(currentState, currentPlayer);
+        if (currentState.status === 'round_end') {
+          currentState = checkGameOver(currentState);
+        }
+      }
+
+      updateGameState(lobbyId, currentState);
+      broadcastGameState(lobbyId, currentState);
+      startTurnTimer(lobbyId, currentState);
+      checkAndRunAITurn(lobbyId, currentState);
+    } catch (e) {
+      console.error('Turn timer auto-play error:', e);
+    }
+  }, TURN_TIMER_MS);
+
+  turnTimers.set(lobbyId, timer);
+}
+
+function getSanitizedState(state: any, userId: string, lobbyId?: string) {
   const opponentHandCounts: Record<string, number> = {};
   for (const p of state.players) {
     if (p !== userId) {
@@ -192,7 +259,8 @@ function getSanitizedState(state: any, userId: string) {
     hands: { [userId]: state.hands[userId] || [] },
     opponentHandCounts,
     marketCount: state.market.length,
-    market: [] // hide market
+    market: [], // hide market
+    turnDeadline: lobbyId ? (turnDeadlines.get(lobbyId) || null) : null
   };
 }
 
@@ -204,7 +272,7 @@ function broadcastGameState(lobbyId: string, state: any) {
       const clientSocket = io.sockets.sockets.get(socketId);
       if (clientSocket) {
         const clientUserId = clientSocket.data.userId;
-        clientSocket.emit('game_state_update', getSanitizedState(state, clientUserId));
+        clientSocket.emit('game_state_update', getSanitizedState(state, clientUserId, lobbyId));
       }
     }
   }
@@ -212,9 +280,10 @@ function broadcastGameState(lobbyId: string, state: any) {
 
 function updateGameState(lobbyId: string, state: any) {
   db.prepare('UPDATE game_states SET state_json = ?, updated_at = CURRENT_TIMESTAMP WHERE lobby_id = ?').run(JSON.stringify(state), lobbyId);
-  if (state.status === 'finished') {
-    db.prepare('UPDATE lobbies SET status = ? WHERE id = ?').run('finished', lobbyId);
-    recordMatchStats(state);
+  if (state.status === 'finished' || state.status === 'stopped') {
+    db.prepare('UPDATE lobbies SET status = ? WHERE id = ?').run(state.status, lobbyId);
+    if (state.status === 'finished') recordMatchStats(state);
+    clearTurnTimer(lobbyId);
   }
 }
 
@@ -735,6 +804,7 @@ app.post('/api/lobbies/:id/start', authenticate, (req, res) => {
   if (io) {
     io.to(`lobby_${lobbyId}`).emit('game_started');
     broadcastGameState(lobbyId, state);
+    startTurnTimer(lobbyId, state);
     checkAndRunAITurn(lobbyId, state);
   }
 
@@ -986,7 +1056,7 @@ async function startServer() {
       const gameStateRow = db.prepare('SELECT state_json FROM game_states WHERE lobby_id = ?').get(lobbyId) as any;
       if (gameStateRow) {
         const state = JSON.parse(gameStateRow.state_json);
-        socket.emit('game_state_update', getSanitizedState(state, userId));
+        socket.emit('game_state_update', getSanitizedState(state, userId, lobbyId));
       }
     });
 
@@ -1008,6 +1078,7 @@ async function startServer() {
         updateGameState(lobbyId, state);
 
         broadcastGameState(lobbyId, state);
+        startTurnTimer(lobbyId, state);
         checkAndRunAITurn(lobbyId, state);
         if (callback) callback({ success: true });
       } catch (err: any) {
@@ -1026,6 +1097,7 @@ async function startServer() {
         updateGameState(lobbyId, state);
 
         broadcastGameState(lobbyId, state);
+        startTurnTimer(lobbyId, state);
         checkAndRunAITurn(lobbyId, state);
         if (callback) callback({ success: true });
       } catch (err: any) {
@@ -1047,6 +1119,7 @@ async function startServer() {
         updateGameState(lobbyId, state);
 
         broadcastGameState(lobbyId, state);
+        startTurnTimer(lobbyId, state);
         checkAndRunAITurn(lobbyId, state);
         if (callback) callback({ success: true });
       } catch (err: any) {
@@ -1067,6 +1140,7 @@ async function startServer() {
         updateGameState(lobbyId, state);
 
         broadcastGameState(lobbyId, state);
+        startTurnTimer(lobbyId, state);
         checkAndRunAITurn(lobbyId, state);
         if (callback) callback({ success: true });
       } catch (err: any) {
@@ -1081,6 +1155,65 @@ async function startServer() {
       io.to(`lobby_${lobbyId}`).emit('reaction', { userId, emoji });
     });
 
+    // Stop game voting system
+    socket.on('stop_game_request', ({ lobbyId }, callback) => {
+      try {
+        const row = db.prepare('SELECT state_json FROM game_states WHERE lobby_id = ?').get(lobbyId) as any;
+        if (!row) return callback && callback({ error: 'Game not found' });
+        const state = JSON.parse(row.state_json);
+        if (state.status !== 'playing' && state.status !== 'round_end') {
+          return callback && callback({ error: 'Game is not in progress' });
+        }
+
+        // Only human players can vote
+        if (userId.startsWith('ai_')) return callback && callback({ error: 'AI cannot vote' });
+
+        if (!stopVotes.has(lobbyId)) stopVotes.set(lobbyId, new Set());
+        const votes = stopVotes.get(lobbyId)!;
+        votes.add(userId);
+
+        // Count required votes: all human players
+        const humanPlayers = state.players.filter((p: string) => !p.startsWith('ai_'));
+        const requiredVotes = humanPlayers.length;
+        const currentVotes = votes.size;
+
+        if (currentVotes >= requiredVotes) {
+          // All humans confirmed — stop the game
+          state.status = 'stopped';
+          updateGameState(lobbyId, state);
+          broadcastGameState(lobbyId, state);
+          clearTurnTimer(lobbyId);
+          stopVotes.delete(lobbyId);
+
+          io.to(`lobby_${lobbyId}`).emit('stop_vote_update', { votes: currentVotes, required: requiredVotes, stopped: true, voters: Array.from(votes) });
+        } else {
+          // Notify all players of progress
+          io.to(`lobby_${lobbyId}`).emit('stop_vote_update', { votes: currentVotes, required: requiredVotes, stopped: false, voters: Array.from(votes) });
+        }
+
+        if (callback) callback({ success: true });
+      } catch (err: any) {
+        if (callback) callback({ error: err.message });
+      }
+    });
+
+    socket.on('cancel_stop_vote', ({ lobbyId }, callback) => {
+      const votes = stopVotes.get(lobbyId);
+      if (votes) {
+        votes.delete(userId);
+        if (votes.size === 0) stopVotes.delete(lobbyId);
+
+        // Re-count required
+        const row = db.prepare('SELECT state_json FROM game_states WHERE lobby_id = ?').get(lobbyId) as any;
+        if (row) {
+          const state = JSON.parse(row.state_json);
+          const humanPlayers = state.players.filter((p: string) => !p.startsWith('ai_'));
+          io.to(`lobby_${lobbyId}`).emit('stop_vote_update', { votes: votes.size, required: humanPlayers.length, stopped: false, voters: Array.from(votes) });
+        }
+      }
+      if (callback) callback({ success: true });
+    });
+
     // Rematch — host can restart game with same players
     socket.on('rematch', ({ lobbyId }, callback) => {
       try {
@@ -1091,7 +1224,7 @@ async function startServer() {
         const row = db.prepare('SELECT state_json FROM game_states WHERE lobby_id = ?').get(lobbyId) as any;
         if (row) {
           const oldState = JSON.parse(row.state_json);
-          if (oldState.status !== 'finished') return callback && callback({ error: 'Game is not finished yet' });
+          if (oldState.status !== 'finished' && oldState.status !== 'stopped') return callback && callback({ error: 'Game is not finished yet' });
         }
 
         const players = db.prepare('SELECT user_id FROM lobby_players WHERE lobby_id = ? ORDER BY joined_at ASC').all(lobbyId) as any[];
@@ -1104,6 +1237,7 @@ async function startServer() {
 
         io.to(`lobby_${lobbyId}`).emit('game_started');
         broadcastGameState(lobbyId, state);
+        startTurnTimer(lobbyId, state);
         checkAndRunAITurn(lobbyId, state);
 
         if (callback) callback({ success: true });
