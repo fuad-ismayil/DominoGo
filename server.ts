@@ -93,6 +93,15 @@ db.exec(`
     games_played INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS hidden_match_history (
+    user_id TEXT NOT NULL,
+    lobby_id TEXT NOT NULL,
+    hidden_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, lobby_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (lobby_id) REFERENCES lobbies(id) ON DELETE CASCADE
+  );
 `);
 
 try {
@@ -129,6 +138,56 @@ function cleanupStaleGuests() {
     // Delete lobby_players entries for stale guests
     db.prepare(`
       DELETE FROM lobby_players WHERE user_id IN (
+        SELECT id FROM users 
+        WHERE is_guest = 1 
+        AND id NOT LIKE 'ai_%'
+        AND last_active_at < datetime('now', '-24 hours')
+      )
+    `).run();
+
+    // Delete lobbies where stale guests were the creator
+    db.prepare(`
+      DELETE FROM lobbies WHERE creator_id IN (
+        SELECT id FROM users 
+        WHERE is_guest = 1 
+        AND id NOT LIKE 'ai_%'
+        AND last_active_at < datetime('now', '-24 hours')
+      )
+    `).run();
+
+    // Delete friendships involving stale guests
+    db.prepare(`
+      DELETE FROM friendships WHERE sender_id IN (
+        SELECT id FROM users 
+        WHERE is_guest = 1 
+        AND id NOT LIKE 'ai_%'
+        AND last_active_at < datetime('now', '-24 hours')
+      ) OR receiver_id IN (
+        SELECT id FROM users 
+        WHERE is_guest = 1 
+        AND id NOT LIKE 'ai_%'
+        AND last_active_at < datetime('now', '-24 hours')
+      )
+    `).run();
+
+    // Delete game invitations involving stale guests
+    db.prepare(`
+      DELETE FROM game_invitations WHERE sender_id IN (
+        SELECT id FROM users 
+        WHERE is_guest = 1 
+        AND id NOT LIKE 'ai_%'
+        AND last_active_at < datetime('now', '-24 hours')
+      ) OR receiver_id IN (
+        SELECT id FROM users 
+        WHERE is_guest = 1 
+        AND id NOT LIKE 'ai_%'
+        AND last_active_at < datetime('now', '-24 hours')
+      )
+    `).run();
+
+    // Delete player_stats for stale guests
+    db.prepare(`
+      DELETE FROM player_stats WHERE user_id IN (
         SELECT id FROM users 
         WHERE is_guest = 1 
         AND id NOT LIKE 'ai_%'
@@ -495,10 +554,12 @@ app.get('/api/matches/history', authenticate, (req, res) => {
       FROM lobbies l
       JOIN lobby_players lp ON l.id = lp.lobby_id
       LEFT JOIN game_states gs ON l.id = gs.lobby_id
+      LEFT JOIN hidden_match_history hmh ON hmh.lobby_id = l.id AND hmh.user_id = ?
       WHERE lp.user_id = ?
+      AND hmh.lobby_id IS NULL
       ORDER BY COALESCE(gs.updated_at, l.created_at) DESC
       LIMIT 20
-    `).all(userId);
+    `).all(userId, userId);
 
     const formattedMatches = matches.map((m: any) => {
       let scores = null;
@@ -554,14 +615,17 @@ app.delete('/api/matches/:id', authenticate, (req, res) => {
   const userId = (req as any).user.id;
 
   try {
-    db.prepare('DELETE FROM lobby_players WHERE lobby_id = ? AND user_id = ?').run(lobbyId, userId);
+    const membership = db.prepare(
+      'SELECT 1 FROM lobby_players WHERE lobby_id = ? AND user_id = ?'
+    ).get(lobbyId, userId);
 
-    // Check if lobby is empty
-    const players = db.prepare('SELECT * FROM lobby_players WHERE lobby_id = ?').all(lobbyId) as any[];
-    if (players.length === 0) {
-      db.prepare('DELETE FROM lobbies WHERE id = ?').run(lobbyId);
-      db.prepare('DELETE FROM game_states WHERE lobby_id = ?').run(lobbyId);
+    if (!membership) {
+      return res.status(404).json({ error: 'Match not found' });
     }
+
+    db.prepare(
+      'INSERT OR IGNORE INTO hidden_match_history (user_id, lobby_id) VALUES (?, ?)'
+    ).run(userId, lobbyId);
 
     res.json({ success: true });
   } catch (err: any) {
@@ -1179,6 +1243,7 @@ async function startServer() {
 
         if (currentVotes >= requiredVotes) {
           // All humans confirmed — stop the game
+          state.previous_status = state.status;
           state.status = 'stopped';
           updateGameState(lobbyId, state);
           broadcastGameState(lobbyId, state);
@@ -1212,6 +1277,36 @@ async function startServer() {
         }
       }
       if (callback) callback({ success: true });
+    });
+
+    // Continue Game — host can resume stopped game
+    socket.on('continue_game', ({ lobbyId }, callback) => {
+      try {
+        const lobby = db.prepare('SELECT * FROM lobbies WHERE id = ?').get(lobbyId) as any;
+        if (!lobby) return callback && callback({ error: 'Lobby not found' });
+        if (lobby.creator_id !== userId) return callback && callback({ error: 'Only the host can continue the game' });
+
+        const row = db.prepare('SELECT state_json FROM game_states WHERE lobby_id = ?').get(lobbyId) as any;
+        if (row) {
+          const state = JSON.parse(row.state_json);
+          if (state.status !== 'stopped') return callback && callback({ error: 'Game is not stopped' });
+
+          state.status = state.previous_status || 'playing';
+
+          updateGameState(lobbyId, state);
+          db.prepare('UPDATE lobbies SET status = ? WHERE id = ?').run('playing', lobbyId);
+
+          broadcastGameState(lobbyId, state);
+          if (state.status === 'playing') {
+            startTurnTimer(lobbyId, state);
+            checkAndRunAITurn(lobbyId, state);
+          }
+        }
+
+        if (callback) callback({ success: true });
+      } catch (err: any) {
+        if (callback) callback({ error: err.message });
+      }
     });
 
     // Rematch — host can restart game with same players

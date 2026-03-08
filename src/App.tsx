@@ -24,7 +24,7 @@ import {
   UserMinus,
   Clock,
   Trophy,
-  Square,
+  Pause,
 } from "lucide-react";
 import { io, Socket } from "socket.io-client";
 import {
@@ -260,7 +260,7 @@ export default function App() {
     try {
       const res = await fetch(`/api/stats/${id}`);
       if (res.ok) setPlayerStats(await res.json());
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const fetchLeaderboard = async () => {
@@ -270,7 +270,7 @@ export default function App() {
         const data = await res.json();
         setLeaderboard(data.leaderboard || []);
       }
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const fetchFriends = async () => {
@@ -295,7 +295,7 @@ export default function App() {
           ]);
         }
       }
-    } catch (e) {}
+    } catch (e) { }
   };
 
   useEffect(() => {
@@ -513,19 +513,11 @@ export default function App() {
 
     newSocket.on("game_state_update", (state) => {
       setGameState((prev: any) => {
-        // Evaluate sounds outside the functional update by using the current state value
-        // But since we need prev safely, we can do it here but wrap playSound in a setTimeout
-        // to push it to the macrotask queue, ensuring it only runs once per actual update?
-        // Actually, a better way: functional update might run multiple times,
-        // but the socket event itself only fires once.
-        // We can capture the *current* gameState from a ref or just rely on the fact that
-        // functional updates shouldn't have side effects.
         return state;
       });
-
-      // Since closures might have stale state, we can use a ref to track previous state for audio,
-      // OR we can just rely on the setGameState to update the component, and use a standard useEffect
-      // block inside the component to watch for state.board / state.marketCount changes to play audio.
+      if (state.status !== "stopped") {
+        setStopVoteState(null);
+      }
       setCurrentScreen("GAME");
     });
 
@@ -1396,10 +1388,10 @@ export default function App() {
                       </div>
                       {(incomingRequests.length > 0 ||
                         gameInviteToasts.length > 0) && (
-                        <span className="bg-amber-500 text-white text-[9px] sm:text-[10px] font-bold rounded-full w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center">
-                          {incomingRequests.length + gameInviteToasts.length}
-                        </span>
-                      )}
+                          <span className="bg-amber-500 text-white text-[9px] sm:text-[10px] font-bold rounded-full w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center">
+                            {incomingRequests.length + gameInviteToasts.length}
+                          </span>
+                        )}
                     </button>
                   )}
 
@@ -1478,13 +1470,12 @@ export default function App() {
                               </div>
                               <div className="text-[10px] text-[#7a8f74] mt-0.5 flex items-center gap-2">
                                 <span
-                                  className={`px-2 py-0.5 rounded-md ${
-                                    isFinished
-                                      ? "bg-[#2d4a38] text-[#d4ddd0]"
-                                      : isPlaying
-                                        ? "bg-amber-500/20 text-amber-400"
-                                        : "bg-amber-500/20 text-amber-400"
-                                  }`}
+                                  className={`px-2 py-0.5 rounded-md ${isFinished
+                                    ? "bg-[#2d4a38] text-[#d4ddd0]"
+                                    : isPlaying
+                                      ? "bg-amber-500/20 text-amber-400"
+                                      : "bg-amber-500/20 text-amber-400"
+                                    }`}
                                 >
                                   {isFinished
                                     ? "Finished"
@@ -2121,11 +2112,10 @@ export default function App() {
                   return (
                     <div
                       key={idx}
-                      className={`relative rounded-xl border flex flex-col items-center justify-center p-2 sm:p-3 min-h-[80px] sm:min-h-[100px] transition-all ${
-                        player
-                          ? "border-amber-500/30 bg-amber-500/5"
-                          : "border-dashed border-[#2d4a38] bg-[#1a2e22]/50"
-                      }`}
+                      className={`relative rounded-xl border flex flex-col items-center justify-center p-2 sm:p-3 min-h-[80px] sm:min-h-[100px] transition-all ${player
+                        ? "border-amber-500/30 bg-amber-500/5"
+                        : "border-dashed border-[#2d4a38] bg-[#1a2e22]/50"
+                        }`}
                     >
                       {player ? (
                         <>
@@ -2280,18 +2270,17 @@ export default function App() {
                               );
                             }
                           }}
-                          className={`p-1.5 sm:p-2 rounded-lg backdrop-blur-sm border transition-colors ${
-                            stopVoteState?.voters?.includes(userId)
-                              ? "bg-red-900/50 text-red-400 border-red-500/50"
-                              : "bg-[#1a2e22]/80 hover:bg-red-900/30 text-[#a8b5a0] hover:text-red-400 border-[#2d4a38]/50"
-                          }`}
+                          className={`p-1.5 sm:p-2 rounded-lg backdrop-blur-sm border transition-colors ${stopVoteState?.voters?.includes(userId)
+                            ? "bg-red-900/50 text-red-400 border-red-500/50"
+                            : "bg-[#1a2e22]/80 hover:bg-red-900/30 text-[#a8b5a0] hover:text-red-400 border-[#2d4a38]/50"
+                            }`}
                           title={
                             stopVoteState?.voters?.includes(userId)
                               ? "Cancel stop vote"
                               : "Vote to stop game"
                           }
                         >
-                          <Square size={14} className="sm:w-4 sm:h-4" />
+                          <Pause size={14} className="sm:w-4 sm:h-4" />
                         </button>
                         {stopVoteState &&
                           stopVoteState.votes > 0 &&
@@ -2450,11 +2439,10 @@ export default function App() {
                           )
                         }
                         disabled={gameState.marketCount === 0}
-                        className={`flex flex-col items-center gap-0.5 p-1.5 sm:p-2 rounded-lg backdrop-blur-sm border transition-colors ${
-                          gameState.marketCount > 0
-                            ? "bg-[#1a2e22]/80 border-[#2d4a38]/50 text-[#d4ddd0] hover:bg-[#243a2c] hover:text-white cursor-pointer"
-                            : "bg-[#1a2e22]/30 border-[#2d4a38]/20 text-[#5a7054] cursor-not-allowed"
-                        }`}
+                        className={`flex flex-col items-center gap-0.5 p-1.5 sm:p-2 rounded-lg backdrop-blur-sm border transition-colors ${gameState.marketCount > 0
+                          ? "bg-[#1a2e22]/80 border-[#2d4a38]/50 text-[#d4ddd0] hover:bg-[#243a2c] hover:text-white cursor-pointer"
+                          : "bg-[#1a2e22]/30 border-[#2d4a38]/20 text-[#5a7054] cursor-not-allowed"
+                          }`}
                         title={
                           gameState.marketCount > 0
                             ? `Draw (${gameState.marketCount})`
@@ -2610,7 +2598,7 @@ export default function App() {
                               onClick={() => {
                                 setStopVoteState(null);
                                 socket?.emit(
-                                  "rematch",
+                                  "continue_game",
                                   { lobbyId },
                                   (res: any) => {
                                     if (res.error) alert(res.error);
@@ -2619,7 +2607,7 @@ export default function App() {
                               }}
                               className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-1.5 px-4 sm:py-2.5 sm:px-6 rounded-lg sm:rounded-xl text-xs sm:text-sm transition-colors shadow-lg shadow-amber-900/20"
                             >
-                              Rematch
+                              Continue
                             </button>
                           )}
                           <button
@@ -2637,7 +2625,7 @@ export default function App() {
                         </div>
                         {!isHost && (
                           <p className="text-[#7a8f74] text-[9px] sm:text-xs mt-1.5">
-                            Host can start a rematch
+                            Host can continue the game
                           </p>
                         )}
                       </div>
@@ -3191,7 +3179,7 @@ export default function App() {
                       socket?.emit(
                         "reject_game_invite",
                         { inviteId: toast.id },
-                        () => {},
+                        () => { },
                       );
                       setGameInviteToasts((prev) =>
                         prev.filter((t) => t.id !== toast.id),

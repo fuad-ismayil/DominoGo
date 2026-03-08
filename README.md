@@ -1,20 +1,18 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# DominoGo
 
-# Run and deploy your AI Studio app
-
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/ea796ea8-a7a0-425e-a09a-c664ad0b6013
+Multiplayer domino game built with React, Express, Socket.IO, and SQLite.
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
+Prerequisite: Node.js
 
+1. Install dependencies with `npm install`
+2. Start the app with `npm run dev`
+3. Open `http://localhost:3000`
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Scripts
+
+- `npm run dev` starts the Express server with the Vite dev middleware
+- `npm run build` builds the client bundle into `dist`
+- `npm run start` starts the server
+- `npm run lint` runs TypeScript type-checking
