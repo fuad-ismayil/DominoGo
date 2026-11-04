@@ -1,0 +1,31 @@
+name: Rust
+on: [push, pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
+      - run: cargo test --manifest-path rust/Cargo.toml --workspace --locked
+      - run: cargo check --manifest-path rust/Cargo.toml -p domino-client --target wasm32-unknown-unknown --locked
+      - run: cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets --locked -- -D warnings
+      - run: cargo clippy --manifest-path rust/Cargo.toml -p domino-client --target wasm32-unknown-unknown --locked -- -D warnings
+      - name: Live match acceptance
+        timeout-minutes: 12
+        env:
+          DOMINO_PORT: '3010'
+          DOMINO_DB_PATH: /tmp/dominogo-acceptance.sqlite
+          DOMINO_E2E_URL: http://127.0.0.1:3010
+        run: |
+          cargo build --manifest-path rust/Cargo.toml -p domino-server --locked
+          ./rust/target/debug/domino-server > /tmp/dominogo-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -s http://127.0.0.1:3010/api/leaderboard > /dev/null; then break; fi
+            sleep 1
+          done
+          cargo run --manifest-path rust/Cargo.toml -p domino-e2e --locked

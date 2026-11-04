@@ -1,0 +1,9 @@
+[application]
+name = "dominogo"
+default_platform = "web"
+
+[web.app]
+title = "DominoGo"
+
+[web.watcher]
+watch_path = ["src", "assets"]

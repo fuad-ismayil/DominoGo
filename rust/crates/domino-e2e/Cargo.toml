@@ -1,0 +1,14 @@
+[package]
+name = "domino-e2e"
+version.workspace = true
+edition.workspace = true
+license = "MIT"
+description = "Rust-only HTTP and Socket.IO end-to-end acceptance harness"
+
+[dependencies]
+domino-core = { path = "../domino-core" }
+serde_json.workspace = true
+tokio = { version = "1", features = ["full"] }
+futures-util = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "handshake"] }

@@ -1,0 +1,14 @@
+[package]
+name = "domino-core"
+version.workspace = true
+edition.workspace = true
+license = "MIT"
+description = "Authoritative DominoGo rules, deterministic replays and fair-information bot strategy"
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+getrandom = { version = "0.2", features = ["js"] }
+
+[dev-dependencies]
+serde_json = { workspace = true }

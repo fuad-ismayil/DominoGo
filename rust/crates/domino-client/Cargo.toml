@@ -1,0 +1,50 @@
+[package]
+name = "domino-client"
+version.workspace = true
+edition.workspace = true
+license = "MIT"
+description = "Rust browser application for DominoGo"
+
+# The real code is wasm-only (see lib.rs cfg gates); on native targets the crate
+# compiles to a tiny stub so `cargo check -p domino-client` still passes.
+[dependencies]
+domino-core = { path = "../domino-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+dioxus = { version = "0.7", features = ["web"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = [
+    "Window",
+    "ResizeObserver", "DomRect", "DomTokenList", "KeyboardEvent",
+    "AudioContext", "AudioContextState", "AudioBuffer", "AudioBufferSourceNode", "AudioNode", "AudioDestinationNode", "AudioParam", "GainNode",
+    "Navigator",
+    "HtmlAudioElement",
+    "Event",
+    "Node", "NodeList",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "HtmlMediaElement",
+    "HtmlCanvasElement",
+    "CanvasRenderingContext2d",
+    "Location", "Url", "UrlSearchParams", "History", "HtmlInputElement",
+    "Storage",
+    "WebSocket",
+    "MessageEvent",
+    "CloseEvent",
+    "ErrorEvent",
+    "BinaryType",
+    "Request",
+    "RequestInit",
+    "Response",
+    "Headers",
+    "PointerEvent",
+    "console",
+] }
+
+
+
