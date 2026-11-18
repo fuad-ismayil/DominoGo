@@ -1,6 +1,16 @@
 # Go Host for Android
 
-## Current deployment: 2.2.2, version code 13
+## Current deployment: 2.2.3, version code 14
+
+Installed in place November 18, 2026. DominoGo hosts can switch the 30-second
+turn timer off when creating a table (stored as `lobbies.turn_timer`, default
+on). The phone server adds the column on start; PC sync adds it to the PC
+database and upgrades an older baseline, so sync keeps working once both
+servers have run the new version. UnoGo is unchanged. Both public domains
+serve this build from the phone. APK SHA-256:
+`85d349b1130b3be447566dd09e19f16e0587f0a047cfa793e515e72169da56bf`.
+
+### Previous 2.2.2 deployment
 
 Direct same-number selection replaces the Group button. At least one selected
 card must match the discard's color or number; a different number or unmatched

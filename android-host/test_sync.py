@@ -127,6 +127,27 @@ class SyncTests(unittest.TestCase):
             materialize(source, output, data)
             self.assertEqual(snapshot(output)["child"]["rows"], {})
 
+    def test_turn_timer_column_upgrades_old_baseline_and_keeps_choices(self):
+        base = fixture()
+        base["lobbies"] = {"columns": ["id", "draw_rule"], "keys": ["id"], "rows": {("T1",): {"id": "T1", "draw_rule": "anytime"}}}
+        pc = copy.deepcopy(base); phone = copy.deepcopy(base)
+        for data in (pc, phone):
+            data["lobbies"]["columns"].append("turn_timer")
+            data["lobbies"]["rows"][("T1",)]["turn_timer"] = 1
+        phone["lobbies"]["rows"][("T2",)] = {"id": "T2", "draw_rule": "anytime", "turn_timer": 0}
+        result = merge(base, pc, phone)
+        self.assertEqual(result["lobbies"]["rows"][("T1",)]["turn_timer"], 1)
+        self.assertEqual(result["lobbies"]["rows"][("T2",)]["turn_timer"], 0)
+        self.assertEqual(result["lobbies"]["columns"], ["id", "draw_rule", "turn_timer"])
+
+    def test_turn_timer_on_only_one_host_still_refuses_sync(self):
+        base = fixture()
+        base["lobbies"] = {"columns": ["id"], "keys": ["id"], "rows": {}}
+        pc = copy.deepcopy(base); phone = copy.deepcopy(base)
+        pc["lobbies"]["columns"].append("turn_timer")
+        with self.assertRaisesRegex(RuntimeError, "Schema differs for lobbies"):
+            merge(base, pc, phone)
+
     def test_schema_mismatch_refuses_sync(self):
         base = fixture(); phone = copy.deepcopy(base); phone["newtable"] = {}
         with self.assertRaisesRegex(RuntimeError, "schemas differ"):

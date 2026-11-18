@@ -91,12 +91,24 @@ def legacy_stats(data, user):
     return values
 
 
+# Must mirror ensure_column calls in rust/crates/domino-server/src/db.rs.
+ADDED_COLUMNS = {"lobbies": {"turn_timer": 1}}
+
+
 def merge(base, pc, phone):
     # This additive table did not exist in older common baselines. Its empty
     # history is unambiguous once both current databases have the new schema.
     for table in ("reaction_uses","uno_tables","uno_seats","uno_results","uno_result_players","uno_invitations","uno_reactions"):
         if table not in base and table in pc and table in phone:
             base = dict(base, **{table:dict(pc[table], rows={})})
+    # Additive columns appended by server migrations. An older baseline gets the
+    # column's default, which is what the servers stored for every older row.
+    for table, defaults in ADDED_COLUMNS.items():
+        if table in base and table in pc and table in phone and pc[table]["columns"] == phone[table]["columns"]:
+            missing = [c for c in defaults if c not in base[table]["columns"] and c in pc[table]["columns"]]
+            if missing and base[table]["columns"] + missing == pc[table]["columns"]:
+                rows = {k: dict(r, **{c: defaults[c] for c in missing}) for k, r in base[table]["rows"].items()}
+                base = dict(base, **{table: dict(base[table], columns=list(pc[table]["columns"]), rows=rows)})
     if set(base) != set(pc) or set(pc) != set(phone):
         raise RuntimeError("Database schemas differ. Update both apps before syncing.")
     merged = {}
@@ -177,6 +189,11 @@ def ensure_reaction_schema(database):
             FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE);
             CREATE INDEX IF NOT EXISTS reaction_uses_by_user ON reaction_uses (user_id, emoji);""")
         con.executescript((ROOT/"unogo/server/schema.sql").read_text(encoding="utf8"))
+        if list(con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='lobbies'")):
+            existing = {r[1] for r in con.execute("PRAGMA table_info(lobbies)")}
+            if "turn_timer" not in existing:
+                con.execute("ALTER TABLE lobbies ADD COLUMN turn_timer INTEGER NOT NULL DEFAULT 1")
+                con.commit()
 
 
 def materialize(template, output, data):
