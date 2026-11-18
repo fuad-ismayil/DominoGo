@@ -1,6 +1,18 @@
 # Go Host for Android
 
-## Current deployment: 2.3.1, version code 16
+## Current deployment: 2.3.2, version code 17
+
+First self-update, November 19, 2026, 01:31: Start found release
+[android-v2.3.2](https://github.com/fuad-ismayil/DominoGo/releases/tag/android-v2.3.2),
+downloaded and verified it, stopped both games, installed after the one-time
+"Install unknown apps" permission and Android confirmation, and restarted both
+games automatically within seconds. Go Host is now its own installer
+(`installerPackageName=games.dominogo.host`), so on Android 12+ later releases
+install without a confirmation prompt. Both public domains served the new
+version immediately. APK SHA-256:
+`f2979c5693eaeee1084a9584c8c278aa25065c69afd631bc4d182baf00aa1d43`.
+
+### Previous 2.3.1 deployment
 
 Installed over ADB November 19, 2026. GitHub's anonymous API allows 60
 requests per hour per public IP, shared by every device on the connection. A
