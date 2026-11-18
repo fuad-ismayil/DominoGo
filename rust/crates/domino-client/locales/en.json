@@ -448,5 +448,13 @@
   "Choose a legal Telefon end; a new side branch must score a multiple of five": "Choose a legal Telefon end; a new side branch must score a multiple of five",
   "The first round must open with 2–3": "The first round must open with 2–3",
   "Choose 101 or 5-lik (Telefon)": "Choose 101 or 5-lik (Telefon)",
-  "Could not save your reaction. Try again.": "Could not save your reaction. Try again."
+  "Could not save your reaction. Try again.": "Could not save your reaction. Try again.",
+  "30-second turn timer": "30-second turn timer",
+  "If a player doesn't move within 30 seconds, the game plays for them.": "If a player doesn't move within 30 seconds, the game plays for them.",
+  "No time limit. The table waits for every player.": "No time limit. The table waits for every player.",
+  "Only counts when two or more people play. Solo games against bots never have a timer.": "Only counts when two or more people play. Solo games against bots never have a timer.",
+  "Turn timer": "Turn timer",
+  "30 seconds": "30 seconds",
+  "No time limit": "No time limit",
+  "Choose whether to use the turn timer": "Choose whether to use the turn timer"
 }

@@ -503,13 +503,18 @@ async fn create_lobby(auth: AuthUser, Json(body): JsonBody) -> Result<Json<Value
         .map_err(|_| err(StatusCode::BAD_REQUEST, "Choose a valid draw rule"))?
         .unwrap_or_default();
     let draw_rule = serde_json::to_value(draw_rule).unwrap();
+    let turn_timer = match body.get("turnTimer") {
+        None | Some(Value::Null) => true,
+        Some(Value::Bool(on)) => *on,
+        Some(_) => return Err(err(StatusCode::BAD_REQUEST, "Choose whether to use the turn timer")),
+    };
 
     if !matches!(max_players, Some(2..=4)) {
         return Err(err(StatusCode::BAD_REQUEST, "Choose 2, 3, or 4 players"));
     }
     match app.db.execute(
-        "INSERT INTO lobbies (id, creator_id, max_players, draw_rule, game_mode) VALUES (?, ?, ?, ?, ?)",
-        rusqlite::params![lobby_id, auth.id, max_players, draw_rule.as_str().unwrap(), mode.as_str().unwrap()],
+        "INSERT INTO lobbies (id, creator_id, max_players, draw_rule, game_mode, turn_timer) VALUES (?, ?, ?, ?, ?, ?)",
+        rusqlite::params![lobby_id, auth.id, max_players, draw_rule.as_str().unwrap(), mode.as_str().unwrap(), turn_timer],
     ) {
         Ok(_) => {}
         Err(_) => return Err(internal_error("Failed to create lobby")),
@@ -543,6 +548,7 @@ async fn join_lobby(
                 "max_players": r.get::<_, i64>(2)?,
                 "draw_rule": r.get::<_, String>("draw_rule")?,
                 "mode": r.get::<_, String>("game_mode")?,
+                "turn_timer": r.get::<_, bool>("turn_timer")?,
                 "status": r.get::<_, Option<String>>(3).unwrap_or_default().unwrap_or_else(|| "waiting".into())
             }))
         },
@@ -601,6 +607,7 @@ async fn join_lobby(
         "maxPlayers": max_players,
         "drawRule": lobby["draw_rule"],
         "mode": lobby["mode"],
+        "turnTimer": lobby["turn_timer"],
         "creatorId": creator,
         "status": game_status
     })))

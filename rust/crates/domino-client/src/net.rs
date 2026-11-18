@@ -403,12 +403,13 @@ pub async fn create_lobby(
     max_players: i64,
     draw_rule: domino_core::DrawRule,
     mode: domino_core::GameMode,
+    turn_timer: bool,
 ) -> Result<Value, RestError> {
     http_json(
         "POST",
         "/api/lobbies",
         true,
-        Some(json!({ "maxPlayers": max_players, "drawRule": draw_rule, "mode": mode })),
+        Some(json!({ "maxPlayers": max_players, "drawRule": draw_rule, "mode": mode, "turnTimer": turn_timer })),
     )
     .await
 }

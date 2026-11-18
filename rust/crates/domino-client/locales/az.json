@@ -448,5 +448,13 @@
   "Choose a legal Telefon end; a new side branch must score a multiple of five": "Qanuni Telefon ucu seçin; yeni yan qol beşin qatına uyğun xal verməlidir",
   "The first round must open with 2–3": "İlk raund 2–3 ilə açılmalıdır",
   "Choose 101 or 5-lik (Telefon)": "101 və ya 5-lik (Telefon) seçin",
-  "Could not save your reaction. Try again.": "Reaksiyanı saxlamaq mümkün olmadı. Yenidən cəhd edin."
+  "Could not save your reaction. Try again.": "Reaksiyanı saxlamaq mümkün olmadı. Yenidən cəhd edin.",
+  "30-second turn timer": "30 saniyəlik gediş vaxtı",
+  "If a player doesn't move within 30 seconds, the game plays for them.": "Oyunçu 30 saniyə ərzində gediş etməsə, oyun onun yerinə avtomatik oynayır.",
+  "No time limit. The table waits for every player.": "Vaxt məhdudiyyəti yoxdur. Masa hər oyunçunu gözləyir.",
+  "Only counts when two or more people play. Solo games against bots never have a timer.": "Yalnız iki və daha çox insan oynayanda işləyir. Botlarla tək oyunda vaxt sayğacı olmur.",
+  "Turn timer": "Gediş vaxtı",
+  "30 seconds": "30 saniyə",
+  "No time limit": "Vaxt məhdudiyyəti yoxdur",
+  "Choose whether to use the turn timer": "Gediş vaxtından istifadə edib-etməyəcəyinizi seçin"
 }

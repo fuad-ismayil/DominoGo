@@ -171,6 +171,10 @@ fn start_turn_timer_for(app: &Arc<AppState>, lobby_id: &str, state: &Value, dura
     if humans <= 1 {
         return;
     }
+    // The host can turn the watchdog off when creating the table.
+    if !turn_timer_enabled(app, lobby_id) {
+        return;
+    }
 
     let deadline = now_ms() + duration as i64;
     app.deadlines
@@ -256,6 +260,19 @@ async fn turn_timer_tick(
     start_turn_timer(&app, &lobby_id, &value);
     app.broadcast_state(&lobby_id, &value);
     check_and_run_ai_turn(&app, &lobby_id, &value);
+}
+
+/// Creation-time table setting; tables without a stored row keep the timer.
+pub fn turn_timer_enabled(app: &AppState, lobby_id: &str) -> bool {
+    app.db
+        .query_one(
+            "SELECT turn_timer FROM lobbies WHERE id = ?",
+            [lobby_id],
+            |r| r.get::<_, bool>(0),
+        )
+        .ok()
+        .flatten()
+        .unwrap_or(true)
 }
 
 /// Number of human players in a stored state (TS `filter(!p.startsWith('ai_'))`).
@@ -725,6 +742,32 @@ mod tests {
         tick().await;
         assert!(app.deadlines.read().unwrap().contains_key("test"));
         clear_turn_timer(&app, "test");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn tables_without_turn_timer_never_set_a_deadline() {
+        let (app, mut core) = setup(&["human", "other"]);
+        core.hands.insert("human".into(), vec![[6, 1]]);
+        core.hands.insert("other".into(), vec![[2, 2]]);
+        save(&app, &core);
+        let state = serde_json::json!(core);
+        assert!(turn_timer_enabled(&app, "test"));
+        start_turn_timer(&app, "test", &state);
+        assert!(app.deadlines.read().unwrap().contains_key("test"));
+        clear_turn_timer(&app, "test");
+
+        app.db
+            .execute("UPDATE lobbies SET turn_timer = 0 WHERE id = 'test'", [])
+            .unwrap();
+        assert!(!turn_timer_enabled(&app, "test"));
+        start_turn_timer(&app, "test", &state);
+        assert!(!app.deadlines.read().unwrap().contains_key("test"));
+        assert!(app.turn_timers.lock().unwrap().is_empty());
+        tokio::time::advance(Duration::from_millis(TURN_TIMER_MS + 1_000)).await;
+        tokio::task::yield_now().await;
+        let after = to_core(&load_state(&app, "test").unwrap()).unwrap();
+        assert_eq!(after.turn_index, 0, "nobody may move for the waiting player");
+        assert_eq!(after.board.len(), 1);
     }
 
     #[test]

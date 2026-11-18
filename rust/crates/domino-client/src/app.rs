@@ -51,6 +51,7 @@ fn activate_lobby(id: String, v: Value) {
         players: parse_players(&v["players"]),
         max_players: v["maxPlayers"].as_u64().unwrap_or(4) as usize,
         draw_rule: serde_json::from_value(v["drawRule"].clone()).unwrap_or_default(),
+        turn_timer: v["turnTimer"].as_bool().unwrap_or(true),
         is_host: v["creatorId"].as_str() == Some(&SESSION.read().user_id),
     });
     nav(Screen::Lobby);

@@ -34,6 +34,8 @@ pub struct Session {
 pub struct LobbyView {
     pub mode: String,
     pub draw_rule: domino_core::DrawRule,
+    /// 30-second turn watchdog chosen at table creation.
+    pub turn_timer: bool,
     pub lobby_id: String,
     pub players: Vec<LobbyPlayer>,
     pub max_players: usize,

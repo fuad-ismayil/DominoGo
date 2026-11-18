@@ -57,6 +57,8 @@ impl Db {
             "draw_rule",
             "TEXT NOT NULL DEFAULT 'anytime'",
         )?;
+        // 1 = 30-second turn watchdog (the original behaviour), 0 = no time limit.
+        ensure_column(&conn, "lobbies", "turn_timer", "INTEGER NOT NULL DEFAULT 1")?;
         ensure_column(&conn, "users", "last_active_at", "DATETIME")?;
         conn.execute(
             "UPDATE users SET last_active_at = CURRENT_TIMESTAMP WHERE last_active_at IS NULL",

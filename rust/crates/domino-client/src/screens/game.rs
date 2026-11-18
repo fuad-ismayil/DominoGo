@@ -208,6 +208,7 @@ pub fn Game() -> Element {
                 details {class:"table-menu",summary {aria_label:t("Table settings"),"•••"} div {class:"table-menu-panel glass",
                     small {{tf("TABLE {LOBBY.read().lobby_id}", &[("LOBBY.read().lobby_id", (LOBBY.read().lobby_id).to_string())])}}
                     p {class:"locked-draw-rule", {tf("{state.draw_rule.description()} · Locked", &[("state.draw_rule.description()", t(state.draw_rule.description()))])}}
+                    p {class:"locked-draw-rule", if LOBBY.read().turn_timer {{t("30-second turn timer")}} else {{t("No time limit")}}}
                     button {class:"text-button",onclick:move |_|{let doc=crate::browser::document();if doc.fullscreen_element().is_some(){doc.exit_fullscreen();}else if let Some(el)=doc.document_element(){let _=el.request_fullscreen();}},{t("Fullscreen")}}
                     button {class:"text-button",aria_pressed:*SOUND_ENABLED.read(),onclick:move |_|{let next=!*SOUND_ENABLED.read();SOUND_ENABLED.signal().set(next);crate::game::audio::set_enabled(next);},if *SOUND_ENABLED.read(){{t("Sound on")}}else{{t("Sound off")}}}
                     if state.status=="playing" {button {class:"text-button",onclick:move |_|action("stop_game_request",json!({})),{t("Pause match")}}}

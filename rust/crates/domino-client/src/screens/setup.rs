@@ -9,6 +9,7 @@ pub fn Setup() -> Element {
     let mut count = use_signal(|| 2i64);
     let mut busy = use_signal(|| false);
     let mut free_draw = use_signal(|| true);
+    let mut turn_timer = use_signal(|| true);
     let mut mode = use_signal(|| domino_core::GameMode::OneOhOne);
     let create = *SCREEN.read() == Screen::CreateLobby;
     rsx! { section { class: "setup-page menu-page",
@@ -16,7 +17,7 @@ pub fn Setup() -> Element {
         div { class: "setup-card glass",
             h1 { if create { {t("Set the table.")} } else { {t("You're invited.")} } }
             p { class: "muted", if create { {t("Your table, your people. Pick the number of seats, then invite friends or add a bot.")} } else { {t("Ask your host for the seven-character table code and join the next round.")} } }
-            form { onsubmit: move |e| { e.prevent_default(); if busy() { return; } busy.set(true); spawn(async move { if create { if let Some(v) = result(net::create_lobby(count(), if free_draw() { domino_core::DrawRule::Anytime } else { domino_core::DrawRule::WhenBlocked }, mode()).await).await { if let Some(id) = v["id"].as_str() { enter_lobby(id.to_string()).await; } } } else { enter_lobby(code().trim().to_uppercase()).await; } busy.set(false); }); },
+            form { onsubmit: move |e| { e.prevent_default(); if busy() { return; } busy.set(true); spawn(async move { if create { if let Some(v) = result(net::create_lobby(count(), if free_draw() { domino_core::DrawRule::Anytime } else { domino_core::DrawRule::WhenBlocked }, mode(), turn_timer()).await).await { if let Some(id) = v["id"].as_str() { enter_lobby(id.to_string()).await; } } } else { enter_lobby(code().trim().to_uppercase()).await; } busy.set(false); }); },
                 if create {
                     fieldset { class: "seat-picker mode-picker", legend { {t("Game mode")} }
                         for (value,label,detail) in [(domino_core::GameMode::OneOhOne,"101","Classic dominoes"),(domino_core::GameMode::Telefon,"5-lik · Telefon","Score in fives · First to 365")] {
@@ -32,6 +33,13 @@ pub fn Setup() -> Element {
                         }
                         p { id: "draw-rule-help", if free_draw() { {t("Draw on your turn, even with a matching tile.")} } else { {t("Draw only when you have no matching tile.")} } }
                         small { if count()==4 { {t("Four players use all tiles, so there is no market to draw from. ")} } {t("Fixed for this table. Cannot be changed during a match.")} }
+                    }
+                    div { class: "draw-rule-setting",
+                        div { class: "draw-rule-heading", label { r#for: "turn-timer", {t("30-second turn timer")} }
+                            button { id: "turn-timer", r#type: "button", class: "draw-rule-switch", role: "switch", aria_checked: "{turn_timer()}", aria_describedby: "turn-timer-help", disabled: busy(), onclick: move |_| turn_timer.set(!turn_timer()), span {} }
+                        }
+                        p { id: "turn-timer-help", if turn_timer() { {t("If a player doesn't move within 30 seconds, the game plays for them.")} } else { {t("No time limit. The table waits for every player.")} } }
+                        small { {t("Only counts when two or more people play. Solo games against bots never have a timer.")} }
                     }
                     div { class: "setup-note", Icon { name: "bot" } span { {t("Play solo with bots, with friends, or a little of both.")} } }
                 } else { label { r#for: "code", {t("Table code")} } input { class: "code-input", id: "code", name: "table-code", required: true, maxlength: 7, minlength: 7, autocomplete: "off", spellcheck: "false", autocapitalize: "characters", placeholder: "ABC1234", value: "{code}", oninput: move |e| code.set(e.value().trim().to_uppercase()) } }

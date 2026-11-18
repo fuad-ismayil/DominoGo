@@ -448,5 +448,13 @@
   "Choose a legal Telefon end; a new side branch must score a multiple of five": "Выберите допустимый конец: новая боковая ветвь должна дать очки, кратные пяти",
   "The first round must open with 2–3": "Первый раунд должен открываться костью 2–3",
   "Choose 101 or 5-lik (Telefon)": "Выберите 101 или 5-lik (Телефон)",
-  "Could not save your reaction. Try again.": "Не удалось сохранить реакцию. Попробуйте ещё раз."
+  "Could not save your reaction. Try again.": "Не удалось сохранить реакцию. Попробуйте ещё раз.",
+  "30-second turn timer": "30 секунд на ход",
+  "If a player doesn't move within 30 seconds, the game plays for them.": "Если игрок не сходит за 30 секунд, игра сходит за него автоматически.",
+  "No time limit. The table waits for every player.": "Без ограничения времени. Стол ждёт каждого игрока.",
+  "Only counts when two or more people play. Solo games against bots never have a timer.": "Действует, только когда играют двое или больше людей. В одиночной игре с ботами таймера нет.",
+  "Turn timer": "Таймер хода",
+  "30 seconds": "30 секунд",
+  "No time limit": "Без ограничения времени",
+  "Choose whether to use the turn timer": "Укажите, использовать ли таймер хода"
 }

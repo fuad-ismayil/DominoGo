@@ -448,5 +448,13 @@
   "Choose a legal Telefon end; a new side branch must score a multiple of five": "Geçerli bir Telefon ucu seçin; yeni yan kol beşin katı puan vermeli",
   "The first round must open with 2–3": "İlk tur 2–3 ile açılmalı",
   "Choose 101 or 5-lik (Telefon)": "101 veya 5-lik (Telefon) seçin",
-  "Could not save your reaction. Try again.": "Tepkiniz kaydedilemedi. Yeniden deneyin."
+  "Could not save your reaction. Try again.": "Tepkiniz kaydedilemedi. Yeniden deneyin.",
+  "30-second turn timer": "30 saniyelik hamle süresi",
+  "If a player doesn't move within 30 seconds, the game plays for them.": "Oyuncu 30 saniye içinde hamle yapmazsa oyun onun yerine otomatik oynar.",
+  "No time limit. The table waits for every player.": "Süre sınırı yok. Masa her oyuncuyu bekler.",
+  "Only counts when two or more people play. Solo games against bots never have a timer.": "Yalnızca iki veya daha fazla kişi oynarken geçerlidir. Botlara karşı tek başına oyunlarda süre yoktur.",
+  "Turn timer": "Hamle süresi",
+  "30 seconds": "30 saniye",
+  "No time limit": "Süre sınırı yok",
+  "Choose whether to use the turn timer": "Hamle süresinin kullanılıp kullanılmayacağını seçin"
 }
