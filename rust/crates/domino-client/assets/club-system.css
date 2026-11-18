@@ -153,3 +153,9 @@
   .draw-rule-setting small{font-size:.62rem;line-height:1.45}
   .setup-submit{min-height:48px;margin-top:12px}
 }
+
+/* Desktop: the capsule hugs its three items instead of a fixed four-item width. */
+@media (min-width:701px){
+  .club-navigation{width:max-content}
+  .club-navigation .nav-badge{position:static;margin-left:2px}
+}
