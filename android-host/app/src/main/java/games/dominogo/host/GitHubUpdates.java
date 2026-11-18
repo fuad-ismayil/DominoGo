@@ -14,8 +14,16 @@ final class GitHubUpdates {
     private static final String API = "https://api.github.com/repos/fuad-ismayil/DominoGo";
     interface Fetcher { JSONObject get(String path, boolean allowMissing) throws Exception; }
 
+    /** GitHub's anonymous API allows 60 requests per hour per public IP address. */
+    static final class RateLimited extends IOException {
+        final long resetAt;
+        RateLimited(long resetAt) { super("GitHub is limiting update checks right now."); this.resetAt = resetAt; }
+    }
+
     static final class Result {
         final boolean failed, news;
+        /** The check was skipped because GitHub rate-limited it; hosting should not wait for it. */
+        boolean limited;
         final String message, url, revision;
         /** Set only for a newer APK release that also publishes GoHost.apk.sha256. */
         final String version, checksumUrl;
@@ -39,7 +47,8 @@ final class GitHubUpdates {
 
     private final Fetcher fetcher;
     private final String installedRevision, installedVersion;
-    GitHubUpdates() { this(new Network(), BuildConfig.SOURCE_REVISION, BuildConfig.VERSION_NAME); }
+    /** cacheDir keeps ETags and answers; GitHub does not count "not modified" replies. */
+    GitHubUpdates(File cacheDir) { this(new Network(cacheDir), BuildConfig.SOURCE_REVISION, BuildConfig.VERSION_NAME); }
     GitHubUpdates(Fetcher fetcher, String revision, String version) {
         this.fetcher = fetcher; this.installedRevision = revision; this.installedVersion = version;
     }
@@ -80,6 +89,12 @@ final class GitHubUpdates {
                 }
             }
             return new Result(false, false, "No newer published changes found. Installed version " + installedVersion + ".", "", sha, checked);
+        } catch (RateLimited e) {
+            String when = e.resetAt <= 0 ? "within the hour" : "after " + new java.text.SimpleDateFormat("HH:mm", java.util.Locale.ROOT).format(new java.util.Date(e.resetAt));
+            Result skipped = new Result(true, false, "GitHub limited update checks (60 per hour per internet connection), so this check was skipped. "
+                + "Started the installed version " + installedVersion + ". Checks work again " + when + ".", "", "", checked);
+            skipped.limited = true;
+            return skipped;
         } catch (Exception e) {
             String reason = e instanceof SocketTimeoutException ? "GitHub took too long to respond." :
                 e instanceof UnknownHostException ? "GitHub could not be reached. Check your internet connection." :
@@ -147,19 +162,63 @@ final class GitHubUpdates {
         return value.length() <= limit ? value : value.substring(0, limit) + "…";
     }
 
+    static JSONObject parse(String path, String body) throws Exception {
+        if (path.equals(LATEST_COMMIT)) {
+            JSONArray commits = new JSONArray(body);
+            if (commits.length() == 0) throw new IOException("GitHub returned no published commits.");
+            return commits.getJSONObject(0);
+        }
+        return new JSONObject(body);
+    }
+
+    /**
+     * Conditional requests: each answer is stored with its ETag and revalidated
+     * with If-None-Match. GitHub does not count 304 replies against the 60/hour
+     * anonymous limit. When GitHub refuses, the last known answer is used.
+     */
     private static final class Network implements Fetcher {
+        private final File cacheDir;
+        Network(File cacheDir) { this.cacheDir = cacheDir; }
+
+        private File cacheFile(String path) {
+            return cacheDir == null ? null : new File(cacheDir, "github-" + Integer.toHexString(path.hashCode()) + ".json");
+        }
+        private JSONObject cached(String path) {
+            File f = cacheFile(path);
+            try { return f != null && f.isFile() ? new JSONObject(new String(java.nio.file.Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8)) : null; }
+            catch (Exception e) { return null; }
+        }
+        private void store(String path, String etag, String body, boolean missing) {
+            File f = cacheFile(path);
+            if (f == null) return;
+            try {
+                JSONObject entry = new JSONObject().put("etag", etag == null ? "" : etag).put("missing", missing).put("body", body == null ? "" : body);
+                java.nio.file.Files.write(f.toPath(), entry.toString().getBytes(StandardCharsets.UTF_8));
+            } catch (Exception ignored) { }
+        }
+        private JSONObject fromCache(String path, JSONObject entry, boolean allowMissing) throws Exception {
+            if (entry.optBoolean("missing")) { if (allowMissing) return null; throw new IOException("GitHub returned no data."); }
+            return parse(path, entry.getString("body"));
+        }
+
         public JSONObject get(String path, boolean allowMissing) throws Exception {
             if (Thread.currentThread().isInterrupted()) throw new InterruptedIOException("Check canceled");
+            JSONObject entry = cached(path);
             HttpURLConnection connection = (HttpURLConnection)new URL(API + path).openConnection();
             try {
                 connection.setConnectTimeout(4000); connection.setReadTimeout(4000);
                 connection.setUseCaches(false);
-                connection.setRequestProperty("Cache-Control", "no-cache");
                 connection.setRequestProperty("Accept", "application/vnd.github+json");
                 connection.setRequestProperty("User-Agent", "DominoGo-Host/" + BuildConfig.VERSION_NAME);
+                if (entry != null && !entry.optString("etag").isEmpty()) connection.setRequestProperty("If-None-Match", entry.optString("etag"));
                 int code = connection.getResponseCode();
-                if (code == 404 && allowMissing) return null;
-                if (code == 403 || code == 429) throw new IOException("GitHub limited update checks. Try again later.");
+                if (code == 304 && entry != null) return fromCache(path, entry, allowMissing);
+                if (code == 404 && allowMissing) { store(path, connection.getHeaderField("ETag"), "", true); return null; }
+                if (code == 403 || code == 429) {
+                    if (entry != null) return fromCache(path, entry, allowMissing);
+                    long reset = connection.getHeaderFieldLong("X-RateLimit-Reset", 0) * 1000L;
+                    throw new RateLimited(reset);
+                }
                 if (code != 200) throw new IOException("GitHub update check failed (HTTP " + code + ").");
                 try (InputStream in = connection.getInputStream(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
                     byte[] bytes = new byte[8192]; int n;
@@ -169,12 +228,9 @@ final class GitHubUpdates {
                         out.write(bytes, 0, n);
                     }
                     String body = new String(out.toByteArray(), StandardCharsets.UTF_8);
-                    if (path.equals(LATEST_COMMIT)) {
-                        JSONArray commits = new JSONArray(body);
-                        if (commits.length() == 0) throw new IOException("GitHub returned no published commits.");
-                        return commits.getJSONObject(0);
-                    }
-                    return new JSONObject(body);
+                    JSONObject parsed = parse(path, body);
+                    store(path, connection.getHeaderField("ETag"), body, false);
+                    return parsed;
                 }
             } finally { connection.disconnect(); }
         }

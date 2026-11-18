@@ -29,6 +29,13 @@ public class GitHubUpdatesTest {
         JSONObject noSum=release(tag,"GoHost.apk",apk);
         assertFalse(new GitHubUpdates((p,m)->p.equals(GitHubUpdates.LATEST_COMMIT)?commit():noSum,"","2.2.3").check().installable());
     }
+    @Test public void rateLimitSkipsCheckInsteadOfBlockingStart()throws Exception{
+        GitHubUpdates.Result r=new GitHubUpdates((p,m)->{throw new GitHubUpdates.RateLimited(0);},revision,"2.3.0").check();
+        assertTrue(r.limited);assertTrue(r.failed);assertFalse(r.installable());
+        assertTrue(r.message.contains("Started the installed version 2.3.0"));
+        GitHubUpdates.Result offline=new GitHubUpdates((p,m)->{throw new IOException("Offline");},revision,"2.3.0").check();
+        assertFalse(offline.limited);assertTrue(offline.failed);
+    }
     @Test public void checksumFileFormats()throws Exception{
         String hex="85d349b1130b3be447566dd09e19f16e0587f0a047cfa793e515e72169da56bf";
         assertEquals(hex,GitHubUpdates.parseChecksum(hex));
