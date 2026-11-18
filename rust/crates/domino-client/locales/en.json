@@ -456,5 +456,7 @@
   "Turn timer": "Turn timer",
   "30 seconds": "30 seconds",
   "No time limit": "No time limit",
-  "Choose whether to use the turn timer": "Choose whether to use the turn timer"
+  "Choose whether to use the turn timer": "Choose whether to use the turn timer",
+  "{count} friend requests": "{count} friend requests",
+  "{n} players": "{n} players"
 }

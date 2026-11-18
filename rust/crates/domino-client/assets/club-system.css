@@ -128,3 +128,28 @@
 .mode-picker .seat-option{min-width:0;padding:18px 10px}
 .mode-picker .seat-option strong{font-size:clamp(15px,2.6vw,22px);overflow-wrap:anywhere}
 .mode-picker .seat-option span{white-space:normal;line-height:1.5;letter-spacing:normal}
+
+/* Navigation: Account lives behind the profile circle, so the capsule has three items. */
+.club-navigation .nav-item{position:relative}
+.club-navigation .nav-badge{position:absolute;top:4px;right:calc(50% - 22px);min-width:18px;min-height:18px;padding:0 4px;border-radius:9px;font-size:10px;font-weight:700;line-height:18px}
+
+/* Phones: create-table fits one screen, closer to a game menu than a scrolling form. */
+@media (max-width:700px){
+  .setup-page .back-link{display:none}
+  .setup-card{padding:18px 16px;border-radius:20px}
+  .setup-create h1{font-size:1.7rem;margin:0}
+  .setup-create>p.muted,.setup-create .setup-note,.setup-create~.setup-footnote,.setup-create .setup-footnote{display:none}
+  .setup-card form{margin:12px 0 4px}
+  .seat-picker{gap:8px;margin:0 0 10px}
+  .seat-picker legend{margin-bottom:8px;font-size:.72rem}
+  .seat-option{padding:6px;min-height:46px;border-radius:14px;gap:2px;justify-content:center}
+  .seat-option strong{font-size:1.2rem;line-height:1.1}
+  .mode-picker .seat-option{padding:8px 6px}
+  .mode-picker .seat-option strong{font-size:.95rem}
+  .mode-picker .seat-option span{font-size:.62rem;line-height:1.3}
+  .setup-card .draw-rule-setting{padding:6px 12px 10px;margin:0;border-radius:14px}
+  .draw-rule-heading label{font-size:.82rem}
+  .draw-rule-setting p{margin:0 0 3px;font-size:.72rem;line-height:1.45}
+  .draw-rule-setting small{font-size:.62rem;line-height:1.45}
+  .setup-submit{min-height:48px;margin-top:12px}
+}

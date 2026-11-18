@@ -30,7 +30,6 @@ pub fn Menu() -> Element {
             crate::game::timers::sleep_ms(3_000).await;
         }
     });
-    let requests = FRIENDS.read().incoming.len();
     rsx! { section { class: "club-home",
         div { class: "home-columns",
             section { class: "club-welcome glass",
@@ -42,10 +41,6 @@ pub fn Menu() -> Element {
                     button { class: "join-action glass-capsule", onclick: move |_| nav(Screen::JoinLobby), Icon { name: "people" } span { {t("Join with a code")} } Icon { name: "arrow" } }
                 }
                 if session.is_guest { button { class: "save-account", onclick: move |_| nav(Screen::UpgradeAccount), Icon { name: "shield" } span { strong { {t("Make your seat permanent")} } small { {t("Save your progress with a password.")} } } Icon { name: "arrow" } } if let Some(seconds)=countdown() { small { class: "guest-countdown", if seconds==0 {{t("Guest session expires after inactivity")}} else {{ta("Guest access · {}h {:02}m remaining", &[ (seconds/3600).to_string(),format!("{:02}", seconds%3600/60)])}} } } }
-                div { class: "club-shortcuts",
-                    button { class: "shortcut glass", onclick: move |_| { nav(Screen::Friends); spawn(refresh_friends()); }, Icon { name: "people" } span { {t("Friends")} } if requests > 0 { span { class: "notification-dot", "{requests}" } } }
-                    button { class: "shortcut glass", onclick: move |_| { nav(Screen::Leaderboard); }, Icon { name: "trophy" } span { {t("Leaderboard")} } }
-                }
             }
             section { class: "history-panel glass",
                 div { class: "section-heading", div {  h2 { {t("Your tables")} } } button { class: "round-control glass-circle", title: t("Refresh match history"), aria_label: t("Refresh match history"), disabled: refreshing(), onclick: move |_| { if refreshing() { return; } refreshing.set(true); spawn(async move { refresh_menu().await; refreshing.set(false); }); }, Icon { name: "refresh" } } }

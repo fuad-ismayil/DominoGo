@@ -456,5 +456,7 @@
   "Turn timer": "Таймер хода",
   "30 seconds": "30 секунд",
   "No time limit": "Без ограничения времени",
-  "Choose whether to use the turn timer": "Укажите, использовать ли таймер хода"
+  "Choose whether to use the turn timer": "Укажите, использовать ли таймер хода",
+  "{count} friend requests": "Заявки в друзья: {count}",
+  "{n} players": "Игроков: {n}"
 }

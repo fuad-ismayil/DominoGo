@@ -456,5 +456,7 @@
   "Turn timer": "Hamle süresi",
   "30 seconds": "30 saniye",
   "No time limit": "Süre sınırı yok",
-  "Choose whether to use the turn timer": "Hamle süresinin kullanılıp kullanılmayacağını seçin"
+  "Choose whether to use the turn timer": "Hamle süresinin kullanılıp kullanılmayacağını seçin",
+  "{count} friend requests": "{count} arkadaşlık isteği",
+  "{n} players": "{n} oyuncu"
 }

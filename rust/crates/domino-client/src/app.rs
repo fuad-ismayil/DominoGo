@@ -374,6 +374,7 @@ pub fn App() -> Element {
     let invites = GAME_INVITE_TOASTS.read().clone();
     let screen = *SCREEN.read();
     let signed_in = !SESSION.read().user_id.is_empty();
+    let friend_requests = FRIENDS.read().incoming.len();
     let show_navigation = signed_in
         && LOBBY.read().lobby_id.is_empty()
         && !matches!(
@@ -423,9 +424,8 @@ pub fn App() -> Element {
             }
             if show_navigation { nav { class: "club-navigation glass-capsule", aria_label: t("Main navigation"),
                 button { class: if screen == Screen::MainMenu { "nav-item active" } else { "nav-item" }, aria_current: if screen == Screen::MainMenu { "page" } else { "false" }, onclick: move |_| { nav(Screen::MainMenu); spawn(refresh_menu()); }, crate::screens::ui::Icon { name: "home" } span { {t("Home")} } }
-                button { class: if screen == Screen::Friends { "nav-item active" } else { "nav-item" }, aria_current: if screen == Screen::Friends { "page" } else { "false" }, onclick: move |_| nav(Screen::Friends), crate::screens::ui::Icon { name: "people" } span { {t("Friends")} } }
+                button { class: if screen == Screen::Friends { "nav-item active" } else { "nav-item" }, aria_current: if screen == Screen::Friends { "page" } else { "false" }, onclick: move |_| { nav(Screen::Friends); spawn(refresh_friends()); }, crate::screens::ui::Icon { name: "people" } span { {t("Friends")} } if friend_requests > 0 { span { class: "notification-dot nav-badge", aria_label: tf("{count} friend requests", &[("count", friend_requests.to_string())]), "{friend_requests}" } } }
                 button { class: if screen == Screen::Leaderboard { "nav-item active" } else { "nav-item" }, aria_current: if screen == Screen::Leaderboard { "page" } else { "false" }, onclick: move |_| nav(Screen::Leaderboard), crate::screens::ui::Icon { name: "trophy" } span { {t("Ranking")} } }
-                button { class: "nav-item", onclick: move |_| ACCOUNT_OPEN.signal().set(true), crate::screens::ui::Icon { name: "user" } span { {t("Account")} } }
             } }
             if *ACCOUNT_OPEN.read() { crate::screens::account::AccountSheet {} }
             if screen != Screen::Game { footer { class: "club-footer", {t("DOUBLE SIX. GOOD COMPANY. ONE MORE ROUND.")} } }

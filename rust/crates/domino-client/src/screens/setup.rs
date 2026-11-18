@@ -1,5 +1,5 @@
 use super::ui::{BackButton, Icon};
-use crate::i18n::t;
+use crate::i18n::{t, tf};
 use crate::{app::*, net, store::*};
 use dioxus::prelude::*;
 
@@ -14,7 +14,7 @@ pub fn Setup() -> Element {
     let create = *SCREEN.read() == Screen::CreateLobby;
     rsx! { section { class: "setup-page menu-page",
         BackButton {}
-        div { class: "setup-card glass",
+        div { class: if create { "setup-card glass setup-create" } else { "setup-card glass" },
             h1 { if create { {t("Set the table.")} } else { {t("You're invited.")} } }
             p { class: "muted", if create { {t("Your table, your people. Pick the number of seats, then invite friends or add a bot.")} } else { {t("Ask your host for the seven-character table code and join the next round.")} } }
             form { onsubmit: move |e| { e.prevent_default(); if busy() { return; } busy.set(true); spawn(async move { if create { if let Some(v) = result(net::create_lobby(count(), if free_draw() { domino_core::DrawRule::Anytime } else { domino_core::DrawRule::WhenBlocked }, mode(), turn_timer()).await).await { if let Some(id) = v["id"].as_str() { enter_lobby(id.to_string()).await; } } } else { enter_lobby(code().trim().to_uppercase()).await; } busy.set(false); }); },
@@ -25,7 +25,7 @@ pub fn Setup() -> Element {
                         }
                     }
                     fieldset { class: "seat-picker", legend { {t("How many players?")} }
-                        for n in [2i64,3,4] { button { r#type: "button", class: if count()==n { "seat-option selected glass" } else { "seat-option glass" }, aria_pressed: "{count()==n}", onclick: move |_| count.set(n), strong { "{n}" } span { {t("players")} } } }
+                        for n in [2i64,3,4] { button { r#type: "button", class: if count()==n { "seat-option selected glass" } else { "seat-option glass" }, aria_pressed: "{count()==n}", aria_label: tf("{n} players", &[("n", n.to_string())]), onclick: move |_| count.set(n), strong { "{n}" } } }
                     }
                     div { class: "draw-rule-setting",
                         div { class: "draw-rule-heading", label { r#for: "free-draw", {t("Free drawing")} }

@@ -456,5 +456,7 @@
   "Turn timer": "Gediş vaxtı",
   "30 seconds": "30 saniyə",
   "No time limit": "Vaxt məhdudiyyəti yoxdur",
-  "Choose whether to use the turn timer": "Gediş vaxtından istifadə edib-etməyəcəyinizi seçin"
+  "Choose whether to use the turn timer": "Gediş vaxtından istifadə edib-etməyəcəyinizi seçin",
+  "{count} friend requests": "{count} dostluq sorğusu",
+  "{n} players": "{n} oyunçu"
 }
