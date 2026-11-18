@@ -1,6 +1,16 @@
 # Go Host for Android
 
-## Current deployment: 2.2.3, version code 14
+## Current deployment: 2.3.0, version code 15
+
+Installed over ADB November 19, 2026. Go Host can now update itself from
+GitHub releases (see [Self-update](#self-update-from-github-releases)). The
+server also registers each socket's session and events before answering the
+Socket.IO connect, fixing a race where a `join_lobby` sent right after
+connecting was silently dropped. No published release exists yet, so Start
+still starts normally. APK SHA-256:
+`2f29063dd22492c05a783cabab9db60f0fbbd725c8f246a9fb3b0b48a0d64291`.
+
+### Previous 2.2.3 deployment
 
 Installed in place November 18, 2026. DominoGo hosts can switch the 30-second
 turn timer off when creating a table (stored as `lobbies.turn_timer`, default
@@ -147,6 +157,39 @@ This phone was provisioned with a dedicated `dominogo-phone` tunnel at **https:/
 Every tap on Start checks the public repository's `main` branch and its latest published release before starting the engine. If nothing newer is published, hosting starts automatically. New commits show their latest summary and a GitHub comparison link; they are not silently treated as an installed update. A stable release tagged `android-v<version>` with an uploaded `DominoGo-Host.apk` asset is offered when its version is newer than the installed app. View update opens its GitHub release page. Installing an updated APK remains an Android user action; it must have the same package ID and signing key to retain this installation's database and tunnel settings.
 
 GitHub failure, offline access or rate limiting offers Retry or Start installed. Cancel leaves the engine stopped. Last-check details remain visible in the app. Checks run directly from the phone, without the PC or an embedded GitHub token. This repository currently has no published Android release; new native Rust/server code needs a newly built APK, rather than downloading Rust source to execute on the phone.
+
+## Self-update from GitHub releases
+
+From 2.3.0, a newer published release is installed by the app itself:
+
+1. **Start** checks GitHub (as before). The latest release must be tagged
+   `android-v<versionName>`, be published (not draft or prerelease) and carry
+   two assets: `GoHost.apk` and `GoHost.apk.sha256`. Without the checksum file
+   the app only offers the GitHub page, as in earlier versions.
+2. The **Updating Go Host** popup downloads the APK with progress. The app
+   rejects it unless its SHA-256 matches the published file, its package is
+   `games.dominogo.host`, its version code is newer, and its signing
+   certificate equals the installed app's. Android enforces the signature too.
+3. Running games are saved and stopped cleanly, and the app records which
+   games to restart (`files/resume-after-update.json`, valid for 15 minutes).
+4. Android's PackageInstaller installs the APK. **The first self-update asks
+   once** to allow "Install unknown apps" for Go Host and shows Android's
+   confirmation, because earlier versions were installed by ADB. After Go Host
+   has installed itself, Android 12+ applies later updates without a prompt
+   (`USER_ACTION_NOT_REQUIRED`, plus update ownership on Android 14+).
+5. After installation `MY_PACKAGE_REPLACED` starts the recorded games again.
+   Cancel, a failed download or a failed install keeps the installed version
+   and restarts any games that were stopped for the update.
+
+Publishing: bump `versionCode`/`versionName` in `app/build.gradle`, run
+`./android-host/build.ps1`, then
+`./android-host/publish-release.ps1 -Notes 'What changed'` with
+`$env:GITHUB_TOKEN` set to a token that has `contents: write`. The script
+verifies the APK, writes the checksum, uploads both assets to a draft and only
+then publishes it, so phones never see a half-uploaded release. `-DryRun`
+validates without publishing. Updates are signed with the same key as every
+earlier APK (currently the local Android debug key); keep it safe and backed
+up, because a different key can never update this installation.
 
 ## Build
 

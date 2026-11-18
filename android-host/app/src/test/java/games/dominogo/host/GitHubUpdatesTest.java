@@ -16,6 +16,28 @@ public class GitHubUpdatesTest {
         assertEquals("",GitHubUpdates.newerAndroidRelease(release(tag,"GoHost.apk",url),"2.2.0"));
         assertEquals("",GitHubUpdates.newerAndroidRelease(release(tag,"GoHost.apk",url).put("prerelease",true),"2.0.0"));
     }
+    private JSONObject withChecksum(JSONObject release,String url,long size)throws Exception{release.getJSONArray("assets").put(new JSONObject().put("name","GoHost.apk.sha256").put("state","uploaded").put("size",size).put("browser_download_url",url));return release;}
+    @Test public void selfInstallNeedsPublishedChecksumNextToApk()throws Exception{
+        String tag="android-v2.3.0",base=GitHubUpdates.REPOSITORY+"/releases/download/"+tag+"/",apk=base+"GoHost.apk";
+        assertEquals("",GitHubUpdates.checksumAsset(release(tag,"GoHost.apk",apk)));
+        assertEquals(base+"GoHost.apk.sha256",GitHubUpdates.checksumAsset(withChecksum(release(tag,"GoHost.apk",apk),base+"GoHost.apk.sha256",80)));
+        assertEquals("",GitHubUpdates.checksumAsset(withChecksum(release(tag,"GoHost.apk",apk),"https://example.com/GoHost.apk.sha256",80)));
+        assertEquals("",GitHubUpdates.checksumAsset(withChecksum(release(tag,"GoHost.apk",apk),base+"GoHost.apk.sha256",5000)));
+        JSONObject full=withChecksum(release(tag,"GoHost.apk",apk),base+"GoHost.apk.sha256",80);
+        GitHubUpdates.Result r=new GitHubUpdates((p,m)->p.equals(GitHubUpdates.LATEST_COMMIT)?commit():full,"","2.2.3").check();
+        assertTrue(r.installable());assertEquals("2.3.0",r.version);assertEquals(apk,r.url);
+        JSONObject noSum=release(tag,"GoHost.apk",apk);
+        assertFalse(new GitHubUpdates((p,m)->p.equals(GitHubUpdates.LATEST_COMMIT)?commit():noSum,"","2.2.3").check().installable());
+    }
+    @Test public void checksumFileFormats()throws Exception{
+        String hex="85d349b1130b3be447566dd09e19f16e0587f0a047cfa793e515e72169da56bf";
+        assertEquals(hex,GitHubUpdates.parseChecksum(hex));
+        assertEquals(hex,GitHubUpdates.parseChecksum(hex.toUpperCase()+"  GoHost.apk\n"));
+        assertEquals(hex,GitHubUpdates.parseChecksum(hex+" *GoHost.apk"));
+        for(String bad:new String[]{"",hex.substring(1),hex+"  other.apk","not a checksum"}){
+            try{GitHubUpdates.parseChecksum(bad);fail(bad);}catch(IOException expected){}
+        }
+    }
     @Test public void dirtyBuildCannotClaimPublishedRevision()throws Exception{
         GitHubUpdates.Result r=new GitHubUpdates((p,m)->p.equals(GitHubUpdates.LATEST_COMMIT)?commit():null,"","2.0.0").check();
         assertFalse(r.failed);assertFalse(r.news);assertEquals("",r.url);

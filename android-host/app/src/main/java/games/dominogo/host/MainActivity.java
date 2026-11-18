@@ -27,6 +27,7 @@ public class MainActivity extends Activity {
     private int surface,text,secondary,primary,onPrimary,generation;
     private boolean checking,resumed,active; private Thread checkThread;
     private String target="both"; private GitHubUpdates.Result pending;
+    private GitHubUpdates.Result pendingUpdate; private String pendingUpdateGame="both"; private Thread updateThread;
     private static class Row {String id,url="",local="",phase="stopped";TextView state,detail,link;Button start,stop,open,share,copy;}
     private final Runnable poll=new Runnable(){public void run(){refresh();handler.postDelayed(this,1000);}};
 
@@ -44,7 +45,7 @@ public class MainActivity extends Activity {
         review=button("View update on GitHub",false);add(root,review,12);review.setOnClickListener(v->{String url=read("update-state.json").optString("url");if(url.startsWith(GitHubUpdates.REPOSITORY+"/"))open(url);});
         sync=label("PC sync waits for both games to stop on both hosts. Connect the paired phone by USB or wireless debugging.",14,secondary);add(root,sync,24);
         settings=button("Public link settings",false);add(root,settings,20);settings.setOnClickListener(v->settings());Button logs=button("Connection details",false);add(root,logs,8);logs.setOnClickListener(v->logs());
-        add(root,label("Development build: phone testing is still required. Keep the phone online while hosting. Stop both games before installing an APK update.",14,secondary),20);
+        add(root,label("Keep the phone online while hosting. When a newer Go Host is published on GitHub, Start downloads it, verifies it, saves and stops the games, installs it and starts them again.",14,secondary),20);
         setContentView(scroll);scroll.requestApplyInsets();
     }
     private void gameRow(LinearLayout root,String id,String name,int port){
@@ -83,8 +84,60 @@ public class MainActivity extends Activity {
     private void cancelCheck(){++generation;checking=false;pending=null;if(checkThread!=null)checkThread.interrupt();refresh();}
     private void finishCheck(GitHubUpdates.Result result,String game){
         if(result.failed)new AlertDialog.Builder(this).setTitle("Couldn’t complete GitHub check").setMessage(result.message).setPositiveButton("Retry",(d,w)->check(game)).setNeutralButton("Start installed",(d,w)->launch(game)).setNegativeButton("Cancel",null).show();
+        else if(result.installable())startUpdate(result,game);
         else if(result.news)new AlertDialog.Builder(this).setTitle("GitHub update available").setMessage(result.message+"\n\nStop both games before installing an APK. Reviewing this link does not stop a running game.").setPositiveButton("Review update",(d,w)->open(result.url)).setNeutralButton("Start installed",(d,w)->launch(game)).setNegativeButton("Cancel",null).show();
         else launch(game);
+    }
+    /** Newer verified APK found on Start: download, verify, stop games cleanly, install, restart. */
+    private void startUpdate(GitHubUpdates.Result update,String game){
+        if(Build.VERSION.SDK_INT>=26&&!getPackageManager().canRequestPackageInstalls()){
+            new AlertDialog.Builder(this).setTitle("Allow Go Host updates").setMessage("Go Host "+update.version+" is ready on GitHub.\n\nAndroid needs a one-time permission before Go Host can install its own updates. Allow it, then return here and the update continues.")
+                .setPositiveButton("Open settings",(d,w)->{pendingUpdate=update;pendingUpdateGame=game;startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+getPackageName())));})
+                .setNeutralButton("Start installed",(d,w)->launch(game)).setNegativeButton("Cancel",null).show();
+            return;
+        }
+        Set<String> running=new LinkedHashSet<>();for(Row r:rows.values())if(!r.phase.equals("stopped")&&!r.phase.equals("error"))running.add(r.id);
+        if(game.equals("both")){running.add("dominogo");running.add("unogo");}else running.add(game);
+        String resume=running.size()>1?"both":running.iterator().next();
+        LinearLayout box=column();box.setPadding(dp(24),dp(8),dp(24),dp(8));TextView status=label("Downloading Go Host "+update.version+"…",15,text);box.addView(status);
+        ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);bar.setMax(1000);bar.setIndeterminate(true);add(box,bar,12);
+        add(box,label(active?"Running games are saved, stopped for the update and start again automatically.":"Your games start automatically after the update.",13,secondary),12);
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Updating Go Host").setView(box).setCancelable(false)
+            .setNegativeButton("Cancel",(d,w)->{if(updateThread!=null)updateThread.interrupt();ApkUpdater.writeState(this,"Update canceled. Installed version "+BuildConfig.VERSION_NAME+".",false);}).create();
+        dialog.show();
+        updateThread=new Thread(()->{
+            try{
+                File apk=ApkUpdater.download(this,update,(done,total)->handler.post(()->{if(total>0){bar.setIndeterminate(false);bar.setProgress((int)(done*1000/total));}status.setText("Downloading Go Host "+update.version+"… "+(done/1_048_576)+" MB");}));
+                handler.post(()->status.setText("Verified. Saving and stopping games…"));
+                if(Thread.currentThread().isInterrupted())throw new InterruptedException();
+                ApkUpdater.rememberResume(this,resume,update.version);
+                handler.post(()->stop("both"));
+                long until=System.currentTimeMillis()+30_000;
+                while(System.currentTimeMillis()<until&&hostRunning()){Thread.sleep(500);}
+                if(Thread.currentThread().isInterrupted())throw new InterruptedException();
+                handler.post(()->status.setText("Installing…"));
+                ApkUpdater.install(this,apk);
+                handler.post(()->{if(dialog.isShowing())dialog.dismiss();});
+            }catch(InterruptedException|InterruptedIOException e){
+                // Canceled. If the games were already stopped for the update, start them again.
+                String back=ApkUpdater.takeResume(this);
+                if(!back.isEmpty())handler.post(()->launch(back));
+            }catch(Exception e){
+                String why=e.getMessage()==null?"The update failed.":e.getMessage();
+                ApkUpdater.writeState(this,"Update failed: "+why+" Installed version "+BuildConfig.VERSION_NAME+" kept.",true);
+                String back=ApkUpdater.takeResume(this);
+                handler.post(()->{if(dialog.isShowing())dialog.dismiss();if(isFinishing())return;
+                    new AlertDialog.Builder(this).setTitle("Update not installed").setMessage(why+"\n\nThe installed version is unchanged.").setPositiveButton("Start installed",(d,w)->launch(back.isEmpty()?game:back)).setNegativeButton("Close",null).show();});
+            }
+        },"apk-update");
+        updateThread.start();
+    }
+    /** True while the hosting service still reports a game that is not stopped. */
+    private boolean hostRunning(){
+        JSONObject status=read("host-state.json"),games=status.optJSONObject("games");
+        if(games==null||System.currentTimeMillis()-status.optLong("updated")>=12000)return false;
+        for(Iterator<String> it=games.keys();it.hasNext();){JSONObject g=games.optJSONObject(it.next());String phase=g==null?"stopped":g.optString("phase","stopped");if(!phase.equals("stopped")&&!phase.equals("error"))return true;}
+        return false;
     }
     private void launch(String game){if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},1);startForegroundService(new Intent(this,HostService.class).setAction(HostService.START).putExtra("game",game));handler.postDelayed(this::refresh,350);}
     private void stop(String game){if(active)startService(new Intent(this,HostService.class).setAction(game.equals("both")?HostService.STOP:HostService.STOP_GAME).putExtra("game",game));}
@@ -98,7 +151,8 @@ public class MainActivity extends Activity {
     private EditText field(LinearLayout box,String hint,String value,boolean secret){box.addView(label(hint,14,secondary));EditText f=new EditText(this);f.setSingleLine();f.setText(value);f.setHint(hint);f.setInputType(InputType.TYPE_CLASS_TEXT|(secret?InputType.TYPE_TEXT_VARIATION_PASSWORD:InputType.TYPE_TEXT_VARIATION_URI));add(box,f,4);return f;}
     private static boolean host(String value){try{URI u=new URI(value);return "https".equals(u.getScheme())&&u.getHost()!=null&&u.getUserInfo()==null&&u.getQuery()==null&&u.getFragment()==null&&u.getPort()==-1&&u.getPath().isEmpty();}catch(Exception e){return false;}}
     private void logs(){TextView content=label(read("host-state.json").optString("logs","No connection details yet."),13,text);content.setTextIsSelectable(true);content.setPadding(dp(20),dp(12),dp(20),dp(12));ScrollView s=new ScrollView(this);s.addView(content);new AlertDialog.Builder(this).setTitle("Connection details").setView(s).setPositiveButton("Done",null).show();}
-    protected void onResume(){super.onResume();resumed=true;handler.post(poll);if(pending!=null){GitHubUpdates.Result result=pending;String game=target;pending=null;handler.post(()->{if(resumed&&!isFinishing())finishCheck(result,game);});}}
+    protected void onResume(){super.onResume();resumed=true;handler.post(poll);
+        if(pendingUpdate!=null&&(Build.VERSION.SDK_INT<26||getPackageManager().canRequestPackageInstalls())){GitHubUpdates.Result u=pendingUpdate;String g=pendingUpdateGame;pendingUpdate=null;handler.post(()->{if(resumed&&!isFinishing())startUpdate(u,g);});}if(pending!=null){GitHubUpdates.Result result=pending;String game=target;pending=null;handler.post(()->{if(resumed&&!isFinishing())finishCheck(result,game);});}}
     protected void onPause(){resumed=false;handler.removeCallbacks(poll);super.onPause();}
     protected void onDestroy(){cancelCheck();super.onDestroy();}
 }

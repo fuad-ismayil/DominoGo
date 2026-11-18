@@ -17,14 +17,23 @@ final class GitHubUpdates {
     static final class Result {
         final boolean failed, news;
         final String message, url, revision;
+        /** Set only for a newer APK release that also publishes GoHost.apk.sha256. */
+        final String version, checksumUrl;
         final long checked;
         Result(boolean failed, boolean news, String message, String url, String revision, long checked) {
+            this(failed, news, message, url, revision, checked, "", "");
+        }
+        Result(boolean failed, boolean news, String message, String url, String revision, long checked, String version, String checksumUrl) {
             this.failed = failed; this.news = news; this.message = message;
             this.url = url; this.revision = revision; this.checked = checked;
+            this.version = version; this.checksumUrl = checksumUrl;
         }
+        /** True when the app can download, verify and install this update itself. */
+        boolean installable() { return news && !version.isEmpty() && !checksumUrl.isEmpty() && url.endsWith("/GoHost.apk"); }
         JSONObject json() throws Exception {
             return new JSONObject().put("failed", failed).put("news", news).put("message", message)
-                .put("url", url).put("revision", revision).put("checked", checked);
+                .put("url", url).put("revision", revision).put("checked", checked)
+                .put("version", version).put("checksumUrl", checksumUrl);
         }
     }
 
@@ -46,8 +55,8 @@ final class GitHubUpdates {
             if (!androidRelease.isEmpty()) {
                 String notes = shortText(release.optString("body"), 700);
                 String url = verifiedAsset(release);
-                return new Result(false, true, "Android update " + androidRelease + " is available. Installed: " + installedVersion + "."
-                    + (notes.isEmpty() ? "" : "\n\n" + notes), url, sha, checked);
+                return new Result(false, true, "Go Host " + androidRelease + " is available. Installed: " + installedVersion + "."
+                    + (notes.isEmpty() ? "" : "\n\n" + notes), url, sha, checked, androidRelease, checksumAsset(release));
             }
             if (!installedRevision.matches("[0-9a-f]{40}")) {
                 // Local builds intentionally omit a published source revision.
@@ -96,6 +105,27 @@ final class GitHubUpdates {
             JSONObject asset = assets.optJSONObject(i);
             String expected=REPOSITORY+"/releases/download/"+tag+"/GoHost.apk";
             if (asset != null && "GoHost.apk".equals(asset.optString("name")) && "uploaded".equals(asset.optString("state")) && asset.optLong("size")>0 && expected.equals(asset.optString("browser_download_url"))) return expected;
+        }
+        return "";
+    }
+
+    /** Accepts `sha256sum` output ("<hex>  GoHost.apk") or a bare hex digest. */
+    static String parseChecksum(String text) throws IOException {
+        Matcher m = Pattern.compile("^\\s*([0-9a-fA-F]{64})(?:\\s+\\*?GoHost\\.apk)?\\s*$").matcher(text == null ? "" : text);
+        if (!m.matches()) throw new IOException("The release checksum file is not valid.");
+        return m.group(1).toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /** The published SHA-256 file for the release APK, or "" when it is missing. */
+    static String checksumAsset(JSONObject release) {
+        if (verifiedAsset(release).isEmpty()) return "";
+        String tag = release.optString("tag_name");
+        String expected = REPOSITORY + "/releases/download/" + tag + "/GoHost.apk.sha256";
+        JSONArray assets = release.optJSONArray("assets");
+        if (assets != null) for (int i = 0; i < assets.length(); i++) {
+            JSONObject asset = assets.optJSONObject(i);
+            if (asset != null && "GoHost.apk.sha256".equals(asset.optString("name")) && "uploaded".equals(asset.optString("state"))
+                && asset.optLong("size") > 0 && asset.optLong("size") < 1024 && expected.equals(asset.optString("browser_download_url"))) return expected;
         }
         return "";
     }
