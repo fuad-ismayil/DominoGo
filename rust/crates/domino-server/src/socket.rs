@@ -105,33 +105,24 @@ impl std::fmt::Display for AuthError {
 }
 impl std::error::Error for AuthError {}
 
-/// Reject unknown or expired sessions before a socket can subscribe.
+/// Reject unknown or expired sessions, then register the socket fully.
+///
+/// Registration happens here rather than in [`on_connect`] on purpose:
+/// socketioxide sends the CONNECT packet after middleware succeeds and then
+/// *spawns* the connect handler. Events a client sends immediately (the
+/// browser's `join_lobby` on reconnect) could otherwise reach a socket with
+/// no listeners and be dropped silently, leaving the table without state.
 pub async fn auth_middleware(
     socket: SocketRef,
     Data(auth): Data<ConnectAuth>,
 ) -> Result<(), AuthError> {
-    let _ = socket;
     let app = app();
-    let session: Option<i64> = app
-        .db
-        .query_one("SELECT 1 FROM sessions WHERE id = ? AND (expires_at IS NULL OR expires_at > datetime('now'))", [&auth.token], |_| Ok(1))
-        .unwrap_or_default();
-    if session.is_none() {
-        return Err(AuthError);
-    }
-    Ok(())
-}
-
-pub async fn on_connect(socket: SocketRef, Data(auth): Data<ConnectAuth>) {
-    let app = app();
-    // Resolve the authenticated account after validating the handshake.
     let user_id: Option<String> = app
         .db
         .query_one("SELECT user_id FROM sessions WHERE id = ? AND (expires_at IS NULL OR expires_at > datetime('now'))", [&auth.token], |r| r.get(0))
         .unwrap_or_default();
     let Some(user_id) = user_id else {
-        let _ = socket.disconnect();
-        return;
+        return Err(AuthError);
     };
 
     // Register the session; detect the user's FIRST socket (presence).
@@ -154,6 +145,8 @@ pub async fn on_connect(socket: SocketRef, Data(auth): Data<ConnectAuth>) {
         first
     };
 
+    register_events(&socket);
+
     if first_socket {
         let friends: Vec<String> = app
             .db
@@ -168,11 +161,24 @@ pub async fn on_connect(socket: SocketRef, Data(auth): Data<ConnectAuth>) {
             app.emit_to_user(&fid, "friend_online", &json!({ "userId": user_id }));
         }
     }
+    Ok(())
+}
 
+/// Runs after the client has been told it is connected.
+pub async fn on_connect(socket: SocketRef) {
+    let app = app();
+    let user_id = {
+        let registry = app.registry.read().unwrap_or_else(|e| e.into_inner());
+        registry.by_socket.get(&socket.id).map(|s| s.user_id.clone())
+    };
+    let Some(user_id) = user_id else { return };
     // Preferences belong to the authenticated account, never the table.
     if let Ok(counts) = app.db.reaction_usage(&user_id) {
         let _ = socket.emit("emote_usage", &json!({"userId":user_id,"counts":counts}));
     }
+}
+
+fn register_events(socket: &SocketRef) {
     socket.on("join_lobby", on_join_lobby);
     socket.on("leave_lobby", on_leave_lobby);
     socket.on("play_tile", on_play_tile);
