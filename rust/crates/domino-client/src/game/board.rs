@@ -4,14 +4,19 @@ use domino_core::{draw_count_for, legal_moves, End, GameMode, GameState, GameSta
 
 /// Evaluate the local hand without inventing any hidden opponent information.
 /// `legal_moves` reads only this hand, the board, round and match status.
-fn placements(state: &SGameState, user_id: &str) -> Vec<(Tile, End)> {
+pub fn placements(state: &SGameState, user_id: &str) -> Vec<(Tile, End)> {
     if state.status != "playing"
         || state.players.get(state.turn_index).map(String::as_str) != Some(user_id)
     {
         return Vec::new();
     }
     let view = GameState {
-        mode: GameMode::OneOhOne,
+        mode: if state.mode == "telefon" {
+            GameMode::Telefon
+        } else {
+            GameMode::OneOhOne
+        },
+        telefon: state.telefon.clone(),
         draw_rule: state.draw_rule,
         players: state.players.clone(),
         hands: state.hands.clone(),

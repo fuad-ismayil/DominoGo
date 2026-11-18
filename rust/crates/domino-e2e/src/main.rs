@@ -5,7 +5,9 @@ mod draw_rule;
 mod invite;
 mod multiplayer;
 mod password;
+mod reactions;
 mod social;
+mod telefon;
 mod waiting;
 use domino_core::{get_ai_move, legal_moves, AIAction, GameState};
 use futures_util::{SinkExt, StreamExt};
@@ -61,6 +63,7 @@ impl Api {
 struct Wire {
     ws: WebSocketStream<MaybeTlsStream<TcpStream>>,
     states: VecDeque<Value>,
+    usage: VecDeque<Value>,
     ack: u64,
 }
 impl Wire {
@@ -73,6 +76,7 @@ impl Wire {
         let mut wire = Self {
             ws,
             states: VecDeque::new(),
+            usage: VecDeque::new(),
             ack: 0,
         };
         let open = wire.packet().await?;
@@ -111,6 +115,9 @@ impl Wire {
             if event[0] == "game_state_update" {
                 self.states.push_back(event[1].clone());
             }
+            if event[0] == "emote_usage" {
+                self.usage.push_back(event[1].clone());
+            }
         }
         Ok(())
     }
@@ -141,6 +148,15 @@ impl Wire {
             self.collect(&packet)?;
         }
     }
+    async fn usage(&mut self) -> Result<Value> {
+        loop {
+            if let Some(usage) = self.usage.pop_front() {
+                return Ok(usage);
+            }
+            let packet = self.packet().await?;
+            self.collect(&packet)?;
+        }
+    }
 }
 fn privacy(state: &Value, user: &str) {
     let hands = state["hands"].as_object().expect("hands object");
@@ -157,10 +173,21 @@ fn privacy(state: &Value, user: &str) {
     assert_eq!(state["market"], json!([]), "market contents leaked");
     assert!(state["marketCount"].is_number());
     let core: GameState = serde_json::from_value(state.clone()).expect("valid core schema");
-    assert!(
-        core.board.windows(2).all(|w| w[0][1] == w[1][0]),
-        "broken chain"
-    );
+    if core.mode == domino_core::GameMode::Telefon {
+        assert_eq!(core.board.len(), core.telefon.len());
+        for (i, node) in core.telefon.iter().enumerate() {
+            if let Some(parent) = node.parent {
+                assert!(parent < i);
+                let source = core.telefon[parent].tile[if node.port == 1 { 1 } else { 0 }];
+                assert_eq!(node.tile[0], source);
+            }
+        }
+    } else {
+        assert!(
+            core.board.windows(2).all(|w| w[0][1] == w[1][0]),
+            "broken chain"
+        );
+    }
     let count = hands[user].as_array().unwrap().len()
         + state["opponentHandCounts"]
             .as_object()
@@ -534,6 +561,12 @@ async fn main() -> Result<()> {
     if std::env::args().any(|arg| arg == "--waiting-only") {
         return waiting::run(&api).await;
     }
+    if std::env::args().any(|arg| arg == "--telefon-only") {
+        return telefon::run(&api).await;
+    }
+    if std::env::args().any(|arg| arg == "--reactions-only") {
+        return reactions::run(&api).await;
+    }
     if std::env::args().any(|arg| arg == "--invite-only") {
         return invite::run(&api).await;
     }
@@ -554,6 +587,8 @@ async fn main() -> Result<()> {
     password::run(&api).await?;
     draw_rule::run(&api).await?;
     invite::run(&api).await?;
+    telefon::run(&api).await?;
+    reactions::run(&api).await?;
     println!("All Rust network acceptance checks passed.");
     Ok(())
 }

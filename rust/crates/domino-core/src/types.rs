@@ -16,7 +16,31 @@ pub enum GameMode {
     /// Serialized as `"101"` to match the TS string literal `'101'`.
     #[serde(rename = "101")]
     OneOhOne,
+    #[serde(rename = "telefon")]
+    Telefon,
 }
+
+impl GameMode {
+    pub fn target(self) -> i32 {
+        match self {
+            Self::OneOhOne => 101,
+            Self::Telefon => 365,
+        }
+    }
+}
+
+/// Stable, chronological tile IDs. A child enters through port 0; port 1 is
+/// its continuation. Doubles also have two scoring-only side ports, 2 and 3.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TelefonNode {
+    pub tile: Tile,
+    pub parent: Option<usize>,
+    pub port: u8,
+}
+
+pub const REACTIONS: [&str; 16] = [
+    "👍", "👎", "😤", "🎉", "😂", "🔥", "💀", "🤝", "😭", "🥲", "😎", "🤯", "😅", "😈", "👏", "❤️",
+];
 
 /// A player's 101-mode score. Serialized with the same keys as TS.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -64,6 +88,8 @@ impl DrawRule {
 #[serde(rename_all = "camelCase")]
 pub struct GameState {
     pub mode: GameMode,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub telefon: Vec<TelefonNode>,
     #[serde(default)]
     pub draw_rule: DrawRule,
     /// Turn order; player IDs are opaque strings (`"ai_1"`, user UUIDs, …).

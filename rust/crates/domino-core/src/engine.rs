@@ -23,12 +23,17 @@ use std::collections::BTreeMap;
 pub enum End {
     Left,
     Right,
+    Telefon(u8, u8),
 }
 
 /// Errors thrown by the TypeScript engine as `Error(message)`; `Display` strings
 /// are identical so existing clients can surface them unchanged.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum DominoError {
+    #[error("Choose a legal Telefon end; a new side branch must score a multiple of five")]
+    InvalidTelefonMove,
+    #[error("The first round must open with 2–3")]
+    MustStartWithTwoThree,
     #[error("Game is not in playing state")]
     NotPlaying,
     #[error("Not your turn")]
@@ -135,6 +140,13 @@ pub fn start_round_with(state: &GameState, rng: &mut GameRng) -> GameState {
         market = tiles[(players.len() * 7)..].to_vec();
 
         if state.round_number == 1 {
+            if state.mode == GameMode::Telefon {
+                if let Some(i) = players.iter().position(|p| hands[p].contains(&[2, 3])) {
+                    starting_player_index = i;
+                    break;
+                }
+                continue;
+            }
             let mut found = false;
             'outer: for d in FIRST_ROUND_DOUBLE_PRIORITY {
                 for (i, p) in players.iter().enumerate() {
@@ -160,6 +172,7 @@ pub fn start_round_with(state: &GameState, rng: &mut GameRng) -> GameState {
 
     GameState {
         hands,
+        telefon: Vec::new(),
         market,
         board: Vec::new(),
         open_ends: [None, None],
@@ -209,6 +222,7 @@ pub fn create_game_with(players: &[&str], mode: GameMode, rng: &mut GameRng) -> 
     }
     let initial = GameState {
         mode,
+        telefon: Vec::new(),
         draw_rule: Default::default(),
         players,
         hands: BTreeMap::new(),
@@ -276,6 +290,9 @@ pub fn can_play_tile(tile: Tile, open_ends: [Option<u8>; 2]) -> bool {
 /// This only reads the named player's hand and public board information.
 #[must_use]
 pub fn legal_moves(state: &GameState, player_id: &str) -> Vec<(Tile, End)> {
+    if state.mode == GameMode::Telefon {
+        return crate::telefon::legal_moves(state, player_id);
+    }
     if state.status != GameStatus::Playing {
         return Vec::new();
     }
@@ -312,6 +329,9 @@ pub fn play_tile(
     tile: Tile,
     end: End,
 ) -> Result<GameState, DominoError> {
+    if state.mode == GameMode::Telefon {
+        return crate::telefon::play_tile(state, player_id, tile, end);
+    }
     if state.status != GameStatus::Playing {
         return Err(DominoError::NotPlaying);
     }
@@ -354,6 +374,7 @@ pub fn play_tile(
         new_open_ends = [Some(actual_tile[0]), Some(actual_tile[1])];
     } else {
         match end {
+            End::Telefon(..) => return Err(DominoError::InvalidTelefonMove),
             End::Left => {
                 let left = state.open_ends[0];
                 if left == Some(actual_tile[0]) {
@@ -390,6 +411,7 @@ pub fn play_tile(
         vec![oriented_tile]
     } else {
         match end {
+            End::Telefon(..) => return Err(DominoError::InvalidTelefonMove),
             End::Left => {
                 let mut b = Vec::with_capacity(state.board.len() + 1);
                 b.push(oriented_tile);
@@ -533,10 +555,15 @@ pub fn pass_turn(state: &GameState, player_id: &str) -> Result<GameState, Domino
             .map(|p| turn_sums[p])
             .sum();
 
-        new_scores = apply_101_scoring(new_scores, &winner, round_points, &state.players);
+        if state.mode == GameMode::Telefon {
+            new_scores.get_mut(&winner).expect("player score").permanent +=
+                crate::telefon::round_bonus(round_points);
+        } else {
+            new_scores = apply_101_scoring(new_scores, &winner, round_points, &state.players);
+        }
     }
 
-    Ok(GameState {
+    let result = GameState {
         turn_index: if new_status == GameStatus::RoundEnd {
             state.turn_index
         } else {
@@ -547,6 +574,11 @@ pub fn pass_turn(state: &GameState, player_id: &str) -> Result<GameState, Domino
         last_winner,
         scores: new_scores,
         ..state.clone()
+    };
+    Ok(if state.mode == GameMode::Telefon {
+        check_game_over(&result)
+    } else {
+        result
     })
 }
 
@@ -556,10 +588,15 @@ pub fn check_game_over(state: &GameState) -> GameState {
     if state
         .players
         .iter()
-        .any(|p| state.scores[p].permanent >= 101)
+        .any(|p| state.scores[p].permanent >= state.mode.target())
     {
         GameState {
             status: GameStatus::Finished,
+            last_winner: state
+                .players
+                .iter()
+                .find(|p| state.scores[*p].permanent >= state.mode.target())
+                .cloned(),
             ..state.clone()
         }
     } else {

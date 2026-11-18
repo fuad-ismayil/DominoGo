@@ -1,0 +1,787 @@
+{
+  "UnoGo home": [
+    "UnoGo əsas səhifə",
+    "UnoGo ana sayfa",
+    "Главная UnoGo"
+  ],
+  "Good friends. One more round.": [
+    "Yaxşı dostlar. Bir raund da.",
+    "İyi arkadaşlar. Bir el daha.",
+    "Хорошие друзья. Ещё одна партия."
+  ],
+  "Your people, your table. Match a color, change the game, and remember to call UNO.": [
+    "Dostların, masan. Rəngi uyğunlaşdır, oyunu dəyiş və UNO deməyi unutma.",
+    "Dostların, masan. Rengi eşleştir, oyunu değiştir ve UNO demeyi unutma.",
+    "Ваши друзья, ваш стол. Подберите цвет, измените ход игры и не забудьте сказать UNO."
+  ],
+  "Good friends, a little strategy, and a hand full of possibilities. Your next round starts here.": [
+    "Dostlar, bir az strategiya və imkanlarla dolu kartlar. Növbəti raundun buradan başlayır.",
+    "Dostlar, biraz strateji ve olasılıklarla dolu bir el. Sıradaki oyun burada başlıyor.",
+    "Друзья, немного стратегии и целая рука возможностей. Следующая партия начинается здесь."
+  ],
+  "Use your DominoGo account here too.": [
+    "DominoGo hesabını burada da istifadə et.",
+    "DominoGo hesabını burada da kullan.",
+    "Используйте свой аккаунт DominoGo и здесь."
+  ],
+  "Your matches and friends stay with you. Add a password to keep this account.": [
+    "Oyunların və dostların səninlə qalır. Hesabı saxlamaq üçün parol əlavə et.",
+    "Oyunların ve arkadaşların seninle kalır. Hesabını korumak için parola ekle.",
+    "Ваши игры и друзья останутся с вами. Добавьте пароль, чтобы сохранить аккаунт."
+  ],
+  "Guest access expires after 24 hours of inactivity.": [
+    "Qonaq girişi 24 saat fəaliyyətsizlikdən sonra bitir.",
+    "Misafir erişimi 24 saat işlem yapılmadığında sona erer.",
+    "Гостевой доступ истекает после 24 часов бездействия."
+  ],
+  "Classic · Single round": [
+    "Klassik · Tək raund",
+    "Klasik · Tek el",
+    "Классика · Одна партия"
+  ],
+  "Private tables · Classic 108-card deck": [
+    "Şəxsi masalar · Klassik 108 kartlıq dəstə",
+    "Özel masalar · Klasik 108 kartlık deste",
+    "Закрытые столы · Классическая колода из 108 карт"
+  ],
+  "Seven cards each. Draw one or play one. No stacking. First empty hand wins.": [
+    "Hərəyə yeddi kart. Bir kart çək və ya oyna. Cərimələr toplanmır. Kartlarını ilk bitirən qalibdir.",
+    "Herkese yedi kart. Bir kart çek veya oyna. Cezalar biriktirilmez. Elini ilk bitiren kazanır.",
+    "По семь карт. Возьмите или сыграйте одну. Штрафы не складываются. Кто первым избавится от карт, тот победил."
+  ],
+  "Your table is ready.": [
+    "Masan hazırdır.",
+    "Masan hazır.",
+    "Ваш стол готов."
+  ],
+  "Seats at the table": [
+    "Masadakı yerlər",
+    "Masadaki yerler",
+    "Места за столом"
+  ],
+  "Host": [
+    "Masa sahibi",
+    "Masa sahibi",
+    "Организатор"
+  ],
+  "Send a link. Your friend joins the waiting room; the round starts when you're ready.": [
+    "Link göndər. Dostun gözləmə otağına qoşulur; hazır olanda raundu başlat.",
+    "Bağlantı gönder. Arkadaşın bekleme odasına katılır; hazır olduğunda oyunu başlat.",
+    "Отправьте ссылку. Друг попадёт в комнату ожидания; начните игру, когда будете готовы."
+  ],
+  "You can also select the link above to copy it.": [
+    "Kopyalamaq üçün yuxarıdakı linki seçə də bilərsən.",
+    "Kopyalamak için yukarıdaki bağlantıyı da seçebilirsin.",
+    "Можно выделить ссылку выше и скопировать её."
+  ],
+  "Every good game starts with a table.": [
+    "Hər yaxşı oyun bir masadan başlayır.",
+    "Her güzel oyun bir masayla başlar.",
+    "Хорошая игра начинается со стола."
+  ],
+  "Create one or join a friend. Your rounds will appear here.": [
+    "Masa yarat və ya dostuna qoşul. Raundların burada görünəcək.",
+    "Masa oluştur veya bir arkadaşına katıl. Oyunların burada görünecek.",
+    "Создайте стол или присоединитесь к другу. Ваши партии появятся здесь."
+  ],
+  "Loading your tables…": [
+    "Masaların yüklənir…",
+    "Masaların yükleniyor…",
+    "Загружаем ваши столы…"
+  ],
+  "Loading…": [
+    "Yüklənir…",
+    "Yükleniyor…",
+    "Загрузка…"
+  ],
+  "Refresh tables": [
+    "Masaları yenilə",
+    "Masaları yenile",
+    "Обновить столы"
+  ],
+  "Connected": [
+    "Qoşulub",
+    "Bağlandı",
+    "Подключено"
+  ],
+  "Connection lost. Reconnecting…": [
+    "Bağlantı kəsildi. Yenidən qoşulur…",
+    "Bağlantı kesildi. Yeniden bağlanıyor…",
+    "Связь потеряна. Переподключение…"
+  ],
+  "Reconnecting…": [
+    "Yenidən qoşulur…",
+    "Yeniden bağlanıyor…",
+    "Переподключение…"
+  ],
+  "Waiting for connection": [
+    "Bağlantı gözlənilir",
+    "Bağlantı bekleniyor",
+    "Ожидание подключения"
+  ],
+  "Your turn": [
+    "Sənin növbəndir",
+    "Sıra sende",
+    "Ваш ход"
+  ],
+  "their turn": [
+    "növbəsi",
+    "oynuyor",
+    "ходит"
+  ],
+  "Time remaining": [
+    "Qalan vaxt",
+    "Kalan süre",
+    "Оставшееся время"
+  ],
+  "Active color": [
+    "Aktiv rəng",
+    "Geçerli renk",
+    "Текущий цвет"
+  ],
+  "Clockwise": [
+    "Saat istiqamətində",
+    "Saat yönünde",
+    "По часовой стрелке"
+  ],
+  "Counterclockwise": [
+    "Saatın əksinə",
+    "Saat yönünün tersine",
+    "Против часовой стрелки"
+  ],
+  "Red": [
+    "Qırmızı",
+    "Kırmızı",
+    "Красный"
+  ],
+  "Yellow": [
+    "Sarı",
+    "Sarı",
+    "Жёлтый"
+  ],
+  "Green": [
+    "Yaşıl",
+    "Yeşil",
+    "Зелёный"
+  ],
+  "Blue": [
+    "Mavi",
+    "Mavi",
+    "Синий"
+  ],
+  "Wild": [
+    "Rəng seç",
+    "Renk seç",
+    "Выбор цвета"
+  ],
+  "Skip": [
+    "Burax",
+    "Atla",
+    "Пропуск"
+  ],
+  "Reverse": [
+    "Əksinə",
+    "Yön değiştir",
+    "Смена направления"
+  ],
+  "cards": [
+    "kart",
+    "kart",
+    "карт"
+  ],
+  "playable": [
+    "oynamaq olar",
+    "oynanabilir",
+    "можно сыграть"
+  ],
+  "Draw pile": [
+    "Çəkilən dəstə",
+    "Çekme destesi",
+    "Колода"
+  ],
+  "Discard": [
+    "Oynanmış kart",
+    "Oynanan kart",
+    "Сброс"
+  ],
+  "Draw one card": [
+    "Bir kart çək",
+    "Bir kart çek",
+    "Взять одну карту"
+  ],
+  "Draw": [
+    "Kart çək",
+    "Kart çek",
+    "Взять карту"
+  ],
+  "Your hand": [
+    "Sənin kartların",
+    "Elindeki kartlar",
+    "Ваши карты"
+  ],
+  "Play card": [
+    "Kartı oyna",
+    "Kartı oyna",
+    "Сыграть карту"
+  ],
+  "Play drawn card": [
+    "Çəkilən kartı oyna",
+    "Çekilen kartı oyna",
+    "Сыграть взятую карту"
+  ],
+  "Keep card": [
+    "Kartı saxla",
+    "Kartı tut",
+    "Оставить карту"
+  ],
+  "Play the new card or keep it": [
+    "Yeni kartı oyna və ya saxla",
+    "Yeni kartı oyna veya tut",
+    "Сыграйте новую карту или оставьте её"
+  ],
+  "Select a card, then play. Tap it again to play too.": [
+    "Kartı seç, sonra oyna. Yenidən toxunaraq da oynaya bilərsən.",
+    "Bir kart seç, sonra oyna. Tekrar dokunarak da oynayabilirsin.",
+    "Выберите карту и сыграйте. Повторное нажатие тоже разыгрывает её."
+  ],
+  "Sending…": [
+    "Göndərilir…",
+    "Gönderiliyor…",
+    "Отправляем…"
+  ],
+  "Choose a color": [
+    "Rəng seç",
+    "Bir renk seç",
+    "Выберите цвет"
+  ],
+  "Choose the opening color": [
+    "Başlanğıc rəngini seç",
+    "Başlangıç rengini seç",
+    "Выберите начальный цвет"
+  ],
+  "Your card stays in your hand until you choose.": [
+    "Rəng seçənədək kart əlində qalır.",
+    "Renk seçene kadar kart elinde kalır.",
+    "Пока вы выбираете, карта остаётся в руке."
+  ],
+  "You have the active color. If your +4 is challenged, you draw four cards.": [
+    "Əlində aktiv rəng var. +4 kartına etiraz edilsə, dörd kartı sən çəkəcəksən.",
+    "Elinde geçerli renk var. +4 kartına itiraz edilirse dört kartı sen çekersin.",
+    "У вас есть карта текущего цвета. Если ваш +4 оспорят, вы возьмёте четыре карты."
+  ],
+  "UNO armed": [
+    "UNO hazırdır",
+    "UNO hazır",
+    "UNO подготовлено"
+  ],
+  "UNO window": [
+    "UNO vaxtı",
+    "UNO süresi",
+    "Время для UNO"
+  ],
+  "Call UNO!": [
+    "UNO de!",
+    "UNO de!",
+    "Сказать UNO!"
+  ],
+  "Catch UNO!": [
+    "UNO-nu tut!",
+    "UNO'yu yakala!",
+    "Поймать на UNO!"
+  ],
+  "Two seconds to call UNO or catch the missed call.": [
+    "UNO demək və ya unudanı tutmaq üçün iki saniyə.",
+    "UNO demek veya unutanı yakalamak için iki saniye.",
+    "Две секунды, чтобы сказать UNO или поймать забывшего игрока."
+  ],
+  "Accept +4": [
+    "+4 qəbul et",
+    "+4 kabul et",
+    "Принять +4"
+  ],
+  "Accept +4 or challenge?": [
+    "+4 qəbul edirsən, yoxsa etiraz?",
+    "+4 kabul mü, itiraz mı?",
+    "Принять +4 или оспорить?"
+  ],
+  "Challenge": [
+    "Etiraz et",
+    "İtiraz et",
+    "Оспорить"
+  ],
+  "Challenge only if you think the sender had the active color.": [
+    "Yalnız rəqibdə aktiv rəng olduğunu düşünürsənsə etiraz et.",
+    "Yalnızca rakibinde geçerli renk olduğunu düşünüyorsan itiraz et.",
+    "Оспаривайте, если считаете, что у отправителя был текущий цвет."
+  ],
+  "Challenge result": [
+    "Etirazın nəticəsi",
+    "İtiraz sonucu",
+    "Результат проверки"
+  ],
+  "Challenge successful": [
+    "Etiraz uğurludur",
+    "İtiraz başarılı",
+    "Возражение подтверждено"
+  ],
+  "Challenge unsuccessful": [
+    "Etiraz uğursuzdur",
+    "İtiraz başarısız",
+    "Возражение отклонено"
+  ],
+  "Only you can see the sender's hand before the +4.": [
+    "+4-dən əvvəlki kartları yalnız sən görə bilərsən.",
+    "+4 öncesindeki eli yalnızca sen görebilirsin.",
+    "Только вы видите руку отправителя до +4."
+  ],
+  "Continue": [
+    "Davam et",
+    "Devam et",
+    "Продолжить"
+  ],
+  "Pause": [
+    "Fasilə",
+    "Duraklat",
+    "Пауза"
+  ],
+  "Cancel pause": [
+    "Sorğunu ləğv et",
+    "İsteği iptal et",
+    "Отменить запрос"
+  ],
+  "Pause requested": [
+    "Fasilə istənilib",
+    "Duraklatma istendi",
+    "Запрошена пауза"
+  ],
+  "Game paused": [
+    "Oyun dayandırılıb",
+    "Oyun duraklatıldı",
+    "Игра на паузе"
+  ],
+  "Continue game": [
+    "Oyuna davam et",
+    "Oyuna devam et",
+    "Продолжить игру"
+  ],
+  "Your cards and remaining decision time are saved.": [
+    "Kartların və qalan qərar vaxtın saxlanılıb.",
+    "Kartların ve kalan karar süren kaydedildi.",
+    "Ваши карты и оставшееся время сохранены."
+  ],
+  "Waiting for your host to continue.": [
+    "Masa sahibinin davam etməsi gözlənilir.",
+    "Masa sahibinin devam etmesi bekleniyor.",
+    "Ждём продолжения от организатора."
+  ],
+  "The draw pile is empty. Available cards have been drawn.": [
+    "Çəkilən dəstə boşdur. Mövcud kartlar çəkilib.",
+    "Çekme destesi boş. Mevcut kartlar çekildi.",
+    "Колода пуста. Доступные карты уже взяты."
+  ],
+  "Round complete": [
+    "Raund bitdi",
+    "El tamamlandı",
+    "Партия завершена"
+  ],
+  "wins!": [
+    "qalibdir!",
+    "kazandı!",
+    "победил!"
+  ],
+  "No contest": [
+    "Nəticəsiz oyun",
+    "Sonuçsuz oyun",
+    "Без результата"
+  ],
+  "All final-card penalties have resolved.": [
+    "Son kartın bütün cərimələri tətbiq edilib.",
+    "Son kartın tüm cezaları uygulandı.",
+    "Все штрафы последней карты выполнены."
+  ],
+  "Waiting for your host to start another round.": [
+    "Masa sahibinin yeni raund başlatması gözlənilir.",
+    "Masa sahibinin yeni el başlatması bekleniyor.",
+    "Ждём, когда организатор начнёт новую партию."
+  ],
+  "Save your account to add friends. Your existing DominoGo friends will be here too.": [
+    "Dost əlavə etmək üçün hesabını saxla. DominoGo dostların da burada olacaq.",
+    "Arkadaş eklemek için hesabını kaydet. DominoGo arkadaşların da burada olacak.",
+    "Сохраните аккаунт, чтобы добавлять друзей. Друзья из DominoGo тоже появятся здесь."
+  ],
+  "Add a friend by username, or share a table link.": [
+    "İstifadəçi adı ilə dost əlavə et və ya masa linkini paylaş.",
+    "Kullanıcı adıyla arkadaş ekle veya masa bağlantısını paylaş.",
+    "Добавьте друга по имени или поделитесь ссылкой на стол."
+  ],
+  "Add a friend": [
+    "Dost əlavə et",
+    "Arkadaş ekle",
+    "Добавить друга"
+  ],
+  "Friend requests": [
+    "Dostluq sorğuları",
+    "Arkadaşlık istekleri",
+    "Заявки в друзья"
+  ],
+  "Incoming": [
+    "Gələn",
+    "Gelen",
+    "Входящие"
+  ],
+  "Sent": [
+    "Göndərilən",
+    "Gönderilen",
+    "Отправленные"
+  ],
+  "No requests": [
+    "Sorğu yoxdur",
+    "İstek yok",
+    "Нет заявок"
+  ],
+  "Refresh friends": [
+    "Dostları yenilə",
+    "Arkadaşları yenile",
+    "Обновить друзей"
+  ],
+  "Refresh leaderboard": [
+    "Reytinqi yenilə",
+    "Sıralamayı yenile",
+    "Обновить таблицу"
+  ],
+  "Leaderboard period": [
+    "Reytinq dövrü",
+    "Sıralama dönemi",
+    "Период таблицы"
+  ],
+  "A friendly tally of UNO wins. No points or skill rating. Periods use UTC.": [
+    "UNO qələbələrinin dostcasına siyahısı. Xal və bacarıq reytinqi yoxdur. Dövrlər UTC ilədir.",
+    "UNO galibiyetlerinin dostça sıralaması. Puan veya beceri derecesi yok. Dönemler UTC'ye göredir.",
+    "Дружеский подсчёт побед в UNO. Без очков и рейтинга мастерства. Периоды указаны в UTC."
+  ],
+  "The next win could be yours.": [
+    "Növbəti qələbə sənin ola bilər.",
+    "Sıradaki galibiyet senin olabilir.",
+    "Следующая победа может стать вашей."
+  ],
+  "Completed games appear here. Bots and unfinished rounds don't count.": [
+    "Bitmiş oyunlar burada görünür. Botlar və yarımçıq raundlar sayılmır.",
+    "Tamamlanan oyunlar burada görünür. Botlar ve bitmemiş eller sayılmaz.",
+    "Завершённые игры появятся здесь. Боты и незаконченные партии не учитываются."
+  ],
+  "Player": [
+    "Oyunçu",
+    "Oyuncu",
+    "Игрок"
+  ],
+  "Players": [
+    "Oyunçular",
+    "Oyuncular",
+    "Игроки"
+  ],
+  "Shared with DominoGo": [
+    "DominoGo ilə ortaq hesab",
+    "DominoGo ile ortak hesap",
+    "Общий аккаунт с DominoGo"
+  ],
+  "Card sounds": [
+    "Kart səsləri",
+    "Kart sesleri",
+    "Звуки карт"
+  ],
+  "Volume": [
+    "Səs səviyyəsi",
+    "Ses düzeyi",
+    "Громкость"
+  ],
+  "Change password": [
+    "Parolu dəyiş",
+    "Parolayı değiştir",
+    "Изменить пароль"
+  ],
+  "Password updated. Other devices have been signed out.": [
+    "Parol yeniləndi. Digər cihazlardan çıxış edildi.",
+    "Parola güncellendi. Diğer cihazlardan çıkış yapıldı.",
+    "Пароль изменён. На других устройствах выполнен выход."
+  ],
+  "Other devices have been signed out.": [
+    "Digər cihazlardan çıxış edildi.",
+    "Diğer cihazlardan çıkış yapıldı.",
+    "На других устройствах выполнен выход."
+  ],
+  "Your session expired. Sign in again.": [
+    "Sessiyanın vaxtı bitdi. Yenidən daxil ol.",
+    "Oturumun sona erdi. Yeniden giriş yap.",
+    "Сессия истекла. Войдите снова."
+  ],
+  "Table not found": [
+    "Masa tapılmadı",
+    "Masa bulunamadı",
+    "Стол не найден"
+  ],
+  "This table is full": [
+    "Masa doludur",
+    "Bu masa dolu",
+    "Этот стол заполнен"
+  ],
+  "This table has already started": [
+    "Bu masada oyun artıq başlayıb",
+    "Bu masada oyun başladı",
+    "Игра за этим столом уже началась"
+  ],
+  "This table belongs to DominoGo. Open DominoGo to join.": [
+    "Bu masa DominoGo-ya aiddir. Qoşulmaq üçün DominoGo-nu aç.",
+    "Bu masa DominoGo'ya ait. Katılmak için DominoGo'yu aç.",
+    "Этот стол в DominoGo. Откройте DominoGo для подключения."
+  ],
+  "The match changed. Your table has been refreshed.": [
+    "Oyun dəyişdi. Masan yeniləndi.",
+    "Oyun değişti. Masan yenilendi.",
+    "Партия изменилась. Стол обновлён."
+  ],
+  "This action is unavailable to this player": [
+    "Bu əməliyyat oyunçu üçün əlçatan deyil",
+    "Bu işlem oyuncu için kullanılamıyor",
+    "Это действие недоступно игроку"
+  ],
+  "Could not read the saved round. Try again.": [
+    "Saxlanılan raund oxunmadı. Yenidən yoxla.",
+    "Kaydedilen el okunamadı. Tekrar dene.",
+    "Не удалось прочитать сохранённую партию. Попробуйте снова."
+  ],
+  "Enter a seven-character table code": [
+    "Yeddi simvolluq masa kodunu daxil et",
+    "Yedi karakterli masa kodunu gir",
+    "Введите код стола из семи символов"
+  ],
+  "Navigation": [
+    "Naviqasiya",
+    "Gezinme",
+    "Навигация"
+  ],
+  "Dismiss": [
+    "Bağla",
+    "Kapat",
+    "Закрыть"
+  ],
+  "Saved.": [
+    "Saxlanıldı.",
+    "Kaydedildi.",
+    "Сохранено."
+  ],
+  "How to play · Classic UNO": [
+    "Oyun qaydaları · Klassik UNO",
+    "Nasıl oynanır · Klasik UNO",
+    "Как играть · Классическая UNO"
+  ],
+  "Match the color, number or action. On a red 7, play any red card or any 7. A Wild chooses the next color.": [
+    "Rəngi, rəqəmi və ya əməli uyğunlaşdır. Qırmızı 7-nin üstünə istənilən qırmızı kart və ya 7 qoy. Wild növbəti rəngi seçir.",
+    "Rengi, sayıyı veya eylemi eşleştir. Kırmızı 7 üzerine herhangi bir kırmızı kart veya 7 oyna. Wild sonraki rengi seçer.",
+    "Совпадите по цвету, числу или действию. На красную 7 можно сыграть любую красную карту или 7. Wild выбирает следующий цвет."
+  ],
+  "You may draw one instead. Only that new card can be played; otherwise keep it and end your turn. Penalties cannot be stacked.": [
+    "Əvəzində bir kart çəkə bilərsən. Yalnız yeni kartı oynamaq olar; yoxsa saxla və növbəni bitir. Cərimələr toplanmır.",
+    "Bunun yerine bir kart çekebilirsin. Yalnızca yeni kart oynanabilir; aksi halde tut ve turunu bitir. Cezalar biriktirilmez.",
+    "Вместо хода можно взять одну карту. Сыграть можно только её; иначе оставьте карту и завершите ход. Штрафы не складываются."
+  ],
+  "With two cards, arm UNO before playing. If you forget, call UNO during the two-second window before someone catches you for two cards.": [
+    "İki kartın qalanda oynamazdan əvvəl UNO-nu hazırla. Unutsan, iki saniyə ərzində UNO de; tutulanda iki kart çəkirsən.",
+    "İki kartın varken oynamadan önce UNO'yu hazırla. Unutursan iki saniye içinde UNO de; yakalanırsan iki kart çekersin.",
+    "С двумя картами подготовьте UNO перед ходом. Если забыли, скажите UNO за две секунды: иначе вас могут поймать и назначить две карты."
+  ],
+  "Play +4 only without a card matching the active color. A successful challenge gives the sender four cards; a failed challenge gives you six.": [
+    "+4-ü yalnız aktiv rəngdə kartın olmadıqda oyna. Uğurlu etirazda göndərən dörd, uğursuz etirazda sən altı kart çəkirsən.",
+    "+4'ü yalnızca geçerli renkte kartın yoksa oyna. Başarılı itirazda gönderen dört, başarısız itirazda sen altı kart çekersin.",
+    "Играйте +4 только без карты текущего цвета. При успешном возражении отправитель берёт четыре карты; при неудачном вы берёте шесть."
+  ],
+  "Turns last 30 seconds. A +4 response lasts 8 seconds. A timeout draws and keeps, or accepts +4. The first empty hand wins after final penalties resolve.": [
+    "Növbə 30, +4 cavabı 8 saniyədir. Vaxt bitəndə kart çəkilib saxlanılır və ya +4 qəbul edilir. Son cərimələrdən sonra kartlarını ilk bitirən qalibdir.",
+    "Turlar 30, +4 yanıtı 8 saniyedir. Süre dolunca kart çekilip tutulur veya +4 kabul edilir. Son cezalar uygulandıktan sonra elini ilk bitiren kazanır.",
+    "На ход даётся 30 секунд, на ответ +4 — 8. По таймауту карта берётся и остаётся в руке либо принимается +4. После последних штрафов побеждает первый без карт."
+  ],
+  "Reactions": [
+    "Reaksiyalar",
+    "Tepkiler",
+    "Реакции"
+  ],
+  "React": [
+    "Reaksiya ver",
+    "Tepki ver",
+    "Реакция"
+  ],
+  "Table invitation": [
+    "Masa dəvəti",
+    "Masa daveti",
+    "Приглашение за стол"
+  ],
+  "invited you to a table": [
+    "səni masaya dəvət etdi",
+    "seni masaya davet etti",
+    "приглашает вас за стол"
+  ],
+  "This game is stopped on the host.": [
+    "Bu oyun hostda dayandırılıb.",
+    "Bu oyun sunucuda durduruldu.",
+    "Эта игра остановлена на сервере."
+  ],
+  "Hold a card and slide it onto the pile.": [
+    "Kartı tutub masaya sürüşdürün.",
+    "Kartı tutup masaya sürükle.",
+    "Удерживайте карту и перетащите её на стол."
+  ],
+  "Lifted. Tap again or slide to play.": [
+    "Oynamaq üçün yenə toxunun və ya sürüşdürün.",
+    "Oynamak için tekrar dokun veya sürükle.",
+    "Коснитесь ещё раз или перетащите карту."
+  ],
+  "Tap to draw": [
+    "Kart çəkmək üçün toxunun",
+    "Kart çekmek için dokun",
+    "Коснитесь, чтобы взять карту"
+  ],
+  "Card controls": [
+    "Kart idarəetməsi",
+    "Kart kontrolleri",
+    "Управление картами"
+  ],
+  "Tap the 5": [
+    "5 kartına toxunun",
+    "5 kartına dokun",
+    "Коснитесь пятёрки"
+  ],
+  "Tapped": [
+    "Toxunuldu",
+    "Dokunuldu",
+    "Нажато"
+  ],
+  "Tap now!": [
+    "İndi toxunun!",
+    "Şimdi dokun!",
+    "Нажимайте!"
+  ],
+  "Get ready": [
+    "Hazır olun",
+    "Hazır ol",
+    "Приготовьтесь"
+  ],
+  "Choose a player": [
+    "Oyunçu seçin",
+    "Oyuncu seç",
+    "Выберите игрока"
+  ],
+  "Swap your remaining hand with one opponent. You can also keep your cards.": [
+    "Qalan kartlarınızı bir rəqiblə dəyişin və ya kartlarınızı saxlayın.",
+    "Kalan elini bir rakiple değiştir veya kartlarını tut.",
+    "Обменяйтесь оставшимися картами с соперником или оставьте свою руку."
+  ],
+  "Keep my cards": [
+    "Kartlarımı saxla",
+    "Kartlarımı tut",
+    "Оставить мои карты"
+  ],
+  "Playing order": [
+    "Oynama ardıcıllığı",
+    "Oynama sırası",
+    "Порядок розыгрыша"
+  ],
+  "Move earlier": [
+    "Əvvələ keçir",
+    "Öne taşı",
+    "Передвинуть раньше"
+  ],
+  "Swap hands or keep your cards?": [
+    "Kartları dəyişmək, yoxsa saxlamaq?",
+    "Eller değişsin mi, kartların kalsın mı?",
+    "Обменяться руками или оставить карты?"
+  ],
+  "choosing a hand swap": [
+    "kart dəyişimini seçir",
+    "el değişimini seçiyor",
+    "выбирает обмен руками"
+  ],
+  "Everyone, touch the 5!": [
+    "Hamı 5 kartına toxunsun!",
+    "Herkes 5 kartına dokunsun!",
+    "Все нажимают на пятёрку!"
+  ],
+  "Swap hands": [
+    "Kartları dəyiş",
+    "Elleri değiştir",
+    "Обменяться руками"
+  ],
+  "No penalty card was available.": [
+    "Cərimə üçün kart qalmadı.",
+    "Ceza için kart kalmadı.",
+    "Карты для штрафа закончились."
+  ],
+  "drew one card": [
+    "bir kart çəkdi",
+    "bir kart çekti",
+    "берёт одну карту"
+  ],
+  "tapped": [
+    "nəfər toxundu",
+    "kişi dokundu",
+    "нажали"
+  ],
+  "Friends · Single round": [
+    "Dost qaydaları · Bir raund",
+    "Arkadaş kuralları · Tek el",
+    "Правила друзей · Один раунд"
+  ],
+  "How to play · UnoGo": [
+    "Necə oynamalı · UnoGo",
+    "Nasıl oynanır · UnoGo",
+    "Как играть · UnoGo"
+  ],
+  "New rounds use Friends rules. Existing saved rounds keep their original Classic rules.": [
+    "Yeni raundlar dost qaydaları ilə oynanır. Əvvəlki saxlanmış raundlar klassik qaydalarını saxlayır.",
+    "Yeni eller arkadaş kurallarıyla oynanır. Kayıtlı eski eller klasik kurallarını korur.",
+    "Новые раунды используют правила друзей. Уже сохранённые раунды сохраняют классические правила."
+  ],
+  "After a 5, everyone taps the center card after the shared countdown. The last tap draws one card. Taps are ordered by server arrival; duplicate taps do not count.": [
+    "5 oynandıqda ümumi geri sayımdan sonra hamı mərkəzdəki karta toxunur. Son toxunan bir kart çəkir. Ardıcıllıq serverə çatma sırasıdır; təkrar toxunuşlar sayılmır.",
+    "5 oynanınca ortak geri sayımdan sonra herkes ortadaki karta dokunur. Son dokunan bir kart çeker. Sıra sunucuya ulaşma sırasıdır; tekrar dokunuşlar sayılmaz.",
+    "После пятёрки все нажимают на центральную карту по общему отсчёту. Последний берёт одну карту. Порядок определяется получением сервером, повторные нажатия не считаются."
+  ],
+  "The tapping window lasts 6 seconds. Missing players count as last; if several do not tap, one is chosen randomly for the single penalty. The game then continues.": [
+    "Toxunmaq üçün 6 saniyə verilir. Toxunmayanlar sonuncu sayılır; bir neçə nəfər toxunmasa, bir cərimə üçün onlardan biri təsadüfi seçilir. Sonra oyun davam edir.",
+    "Dokunmak için 6 saniye vardır. Dokunmayanlar son sayılır; birden çok kişi dokunmazsa tek ceza için biri rastgele seçilir. Sonra oyun devam eder.",
+    "На нажатие даётся 6 секунд. Не нажавшие считаются последними; если их несколько, для единственного штрафа случайно выбирается один. Затем игра продолжается."
+  ],
+  "Play": [
+    "Oyna",
+    "Oyna",
+    "Играть"
+  ],
+  "Close": [
+    "Bağla",
+    "Kapat",
+    "Закрыть"
+  ],
+  "After a 0, choose Swap hands or Keep my cards. A swap exchanges your remaining hand with any opponent. No choice within 15 seconds keeps your cards. Playing your last 0 wins without a swap.": [
+    "0 oynadıqdan sonra kartları dəyişməyi və ya saxlamağı seçin. Qalan kartlarınızı istənilən rəqiblə tam dəyişə bilərsiniz. 15 saniyə ərzində seçim etməsəniz, kartlarınız qalır. Son kartınız 0 olduqda dəyişmədən qalib gəlirsiniz.",
+    "0 oynayınca Elleri değiştir veya Kartlarımı tut seç. Kalan elini istediğin rakiple tamamen değiştirebilirsin. 15 saniye seçim yapmazsan kartların kalır. Son kartın 0 ise değişim olmadan kazanırsın.",
+    "После нуля выберите обмен или сохранение карт. Обменять оставшуюся руку можно с любым соперником. Через 15 секунд без выбора карты останутся у вас. Последний ноль приносит победу без обмена."
+  ],
+  "UNO is armed for your next play. Tap to cancel.": [
+    "Növbəti gedişiniz üçün UNO hazırdır. Ləğv etmək üçün toxunun.",
+    "Sonraki hamlen için UNO hazır. İptal etmek için dokun.",
+    "UNO включено для следующего хода. Нажмите, чтобы отменить."
+  ],
+  "Declare UNO before playing down to one card.": [
+    "Bir karta düşməzdən əvvəl UNO elan edin.",
+    "Tek karta düşmeden önce UNO de.",
+    "Объявите UNO перед ходом, после которого останется одна карта."
+  ],
+  "Tap same-number cards to select them together. At least one must match the pile by color or number; the last sets the next color. Tap a different number to replace the selection. Grouped 0s or 5s resolve once.": [
+    "Eyni nömrəli kartlara toxunaraq birlikdə seçin. Ən azı biri rəng və ya nömrə ilə uyğun gəlməlidir; sonuncu növbəti rəngi təyin edir. Başqa nömrəyə toxunmaq seçimi əvəz edir. Qrupdakı 0 və ya 5 təsiri bir dəfə baş verir.",
+    "Aynı numaralı kartlara dokunarak birlikte seç. En az biri renk veya numarayla eşleşmeli; sonuncu sonraki rengi belirler. Farklı numaraya dokunmak seçimi değiştirir. Gruptaki 0 veya 5 etkisi bir kez uygulanır.",
+    "Нажимайте на карты одного номера, чтобы выбрать их вместе. Хотя бы одна должна совпадать по цвету или номеру; последняя задаёт следующий цвет. Другой номер заменяет выбор. Эффект группы нулей или пятёрок срабатывает один раз."
+  ],
+  "At least one selected card must match the pile.": [
+    "Seçilmiş kartlardan ən azı biri uyğun gəlməlidir.",
+    "Seçilen kartlardan en az biri eşleşmeli.",
+    "Хотя бы одна выбранная карта должна совпадать."
+  ]
+}

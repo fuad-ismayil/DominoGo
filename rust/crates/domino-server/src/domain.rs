@@ -38,7 +38,9 @@ pub struct Registry {
 
 /// Shared server state mirroring the module-level maps of `server.ts`.
 pub struct AppState {
+    pub host_id: String,
     pub db: Db,
+    pub games: crate::lifecycle::Games,
     /// lobbyId → spawned turn timer task (TS `turnTimers`). std Mutex because
     /// `updateGameState` clears timers from synchronous contexts.
     pub turn_timers: Mutex<HashMap<String, tokio::task::JoinHandle<()>>>,
@@ -49,7 +51,7 @@ pub struct AppState {
     pub registry: RwLock<Registry>,
     /// Pending AI turn keys `(lobbyId, player)` dedupe; dropped automatically
     /// when the scheduled AI task finishes acting or observing no change.
-    pub ai_spawns: Mutex<HashSet<(String, String)>>,
+    pub ai_spawns: Mutex<HashSet<(String, String, u64)>>,
 }
 
 impl AppState {

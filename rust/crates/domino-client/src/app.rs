@@ -46,6 +46,7 @@ fn activate_lobby(id: String, v: Value) {
     STOP_VOTE.signal().set(None);
     SHOW_INVITE_MODAL.signal().set(false);
     LOBBY.signal().set(LobbyView {
+        mode: v["mode"].as_str().unwrap_or("101").into(),
         lobby_id: id.clone(),
         players: parse_players(&v["players"]),
         max_players: v["maxPlayers"].as_u64().unwrap_or(4) as usize,
@@ -129,6 +130,28 @@ fn event_is_current(value: &Value) -> bool {
 }
 
 fn install_handlers() {
+    net::on(
+        "emote_usage",
+        Box::new(|v| {
+            if v["userId"].as_str() != Some(SESSION.read().user_id.as_str()) {
+                return;
+            }
+            if let Ok(counts) = serde_json::from_value::<std::collections::BTreeMap<String, u64>>(
+                v["counts"].clone(),
+            ) {
+                let mut usage = EMOTE_USAGE.signal();
+                let mut usage = usage.write();
+                // Concurrent sockets may deliver snapshots out of order. Counts
+                // only grow, so an older snapshot must not undo a newer ordering.
+                for (emoji, count) in counts {
+                    if REACTIONS.contains(&emoji.as_str()) {
+                        let previous = usage.entry(emoji).or_default();
+                        *previous = (*previous).max(count);
+                    }
+                }
+            }
+        }),
+    );
     net::on(
         "connect",
         Box::new(|_| {

@@ -6,6 +6,7 @@ New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
 $launchMutex = New-Object System.Threading.Mutex($false, 'Local\DominoGoPublicLauncher')
 if (!$launchMutex.WaitOne(0)) { throw 'DominoGo is already starting. Wait for that launcher to finish.' }
 try {
+    $databaseSyncLock = [System.IO.File]::Open((Join-Path $projectDir '.domino-sync.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
     $serverExe = Join-Path $projectDir 'rust/target/release/domino-server.exe'
     $staticDir = Join-Path $projectDir 'rust/target/dx/domino-client/release/web/public'
     if (!(Test-Path $serverExe) -or !(Test-Path "$staticDir/index.html")) {
@@ -79,6 +80,7 @@ try {
     Write-Host 'Keep this computer awake and online. Closing this launcher leaves the game running.'
     Write-Host 'A new tunnel usually gets a new address. Run the desktop shortcut again to see the current link.'
 } finally {
+    if ($databaseSyncLock) { $databaseSyncLock.Dispose() }
     $launchMutex.ReleaseMutex()
     $launchMutex.Dispose()
 }

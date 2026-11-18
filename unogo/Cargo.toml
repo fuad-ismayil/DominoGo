@@ -1,0 +1,4 @@
+[workspace]
+resolver = "2"
+members = ["crates/uno-core", "crates/uno-client"]
+

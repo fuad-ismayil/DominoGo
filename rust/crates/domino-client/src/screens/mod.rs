@@ -12,3 +12,5 @@ pub mod ui;
 
 pub mod invite_notice;
 pub mod score;
+
+pub mod telefon;

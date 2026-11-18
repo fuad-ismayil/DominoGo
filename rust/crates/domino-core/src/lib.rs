@@ -8,6 +8,7 @@
 pub mod ai;
 pub mod engine;
 pub mod rng;
+pub mod telefon;
 pub mod types;
 
 pub use ai::{get_ai_move, AIAction};
@@ -18,4 +19,6 @@ pub use engine::{
     DominoError, End, FIRST_ROUND_DOUBLE_PRIORITY,
 };
 pub use rng::GameRng;
-pub use types::{DrawRule, GameMode, GameState, GameStatus, PlayerScore, Tile};
+pub use types::{
+    DrawRule, GameMode, GameState, GameStatus, PlayerScore, TelefonNode, Tile, REACTIONS,
+};

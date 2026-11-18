@@ -41,18 +41,15 @@ fn place(
     let Some(state) = GAME_STATE.read().clone() else {
         return false;
     };
-    let (left, right) = crate::board::can_play_sides(&state, &SESSION.read().user_id, tile);
-    if pending()
-        || placement().is_some()
-        || !matches!((end, left, right), ("left", true, _) | ("right", _, true))
-    {
+    let Some(end) = domino_core::End::from_token(end) else {
+        return false;
+    };
+    let legal = crate::board::placements(&state, &SESSION.read().user_id)
+        .into_iter()
+        .any(|(t, e)| e == end && (t == tile || t == [tile[1], tile[0]]));
+    if pending() || placement().is_some() || !legal {
         return false;
     }
-    let end = if end == "left" {
-        domino_core::End::Left
-    } else {
-        domino_core::End::Right
-    };
     let issued = PendingPlacement::new(&state, tile, end);
     placement.set(Some(issued));
     pending.set(true);
@@ -88,6 +85,16 @@ fn place(
 
 #[component]
 pub fn Game() -> Element {
+    use_effect(move || {
+        let _ = EMOTE_USAGE.read().len();
+        // A reaction sent from the far end can move to the front. Reveal that
+        // updated order instead of leaving the strip scrolled past favorites.
+        if let Some(row) = crate::browser::document().get_element_by_id("emote-list") {
+            if let Some(row) = row.dyn_ref::<web_sys::HtmlElement>() {
+                row.set_scroll_left(0);
+            }
+        }
+    });
     let mut selected = use_signal(|| None::<[u8; 2]>);
     let mut pending = use_signal(|| false);
     let mut placement = use_signal(|| None::<PendingPlacement>);
@@ -195,7 +202,7 @@ pub fn Game() -> Element {
         section {style:"--review-hand-rows:{review_rows};--review-hand-rows-tall:{review_tall_rows};",class:if state.status=="playing" {"club-game"} else if revealed && !hand.is_empty() {"club-game review-mode has-own-remainder"} else {"club-game review-mode"},
             if !ERROR_MSG.read().is_empty(){div {class:"game-error-toast",role:"alert",{t(&ERROR_MSG.read())} button {class:"text-button",onclick:move |_|ERROR_MSG.signal().set(String::new()),"×"}}}
             div {class:"match-bar glass-capsule",
-                div {class:"match-title",span {class:"round-kicker",{tf("ROUND {state.round_number} · 101", &[("state.round_number", format!("{}", (state.round_number)))])}} strong {if state.status=="playing" {if my_turn {{t("Your move")}} else {{tf("{turn} is thinking", &[("turn", (turn).to_string())])}}} else if state.status=="round_end" {{t("Round complete")}} else if state.status=="stopped" {{t("Match paused")}} else {{t("Match complete")}}}}
+                div {class:"match-title",span {class:"round-kicker",{tf("Round {round} · {mode}", &[("round",state.round_number.to_string()),("mode",if state.mode=="telefon"{"5-lik · Telefon".into()}else{"101".into()})])}} strong {if state.status=="playing" {if my_turn {{t("Your move")}} else {{tf("{turn} is thinking", &[("turn", (turn).to_string())])}}} else if state.status=="round_end" {{t("Round complete")}} else if state.status=="stopped" {{t("Match paused")}} else {{t("Match complete")}}}}
                 ConnectionStatus {connected:connected()}
                 Countdown {deadline:state.turn_deadline, active:state.status=="playing"}
                 details {class:"table-menu",summary {aria_label:t("Table settings"),"•••"} div {class:"table-menu-panel glass",
@@ -214,7 +221,7 @@ pub fn Game() -> Element {
                 div {class:if my_turn {"local-seat glass-capsule seat-active"}else{"local-seat glass-capsule"},
                     ReactionBubble {user_id:me.clone()}
                     span {class:"seat-avatar","{SESSION.read().username.chars().next().unwrap_or('•')}"}
-                    strong {"{SESSION.read().username}"} ScoreReadout {score:state.scores.get(&me).copied().unwrap_or_default()}
+                    strong {"{SESSION.read().username}"} ScoreReadout {telefon:state.mode=="telefon",score:state.scores.get(&me).copied().unwrap_or_default()}
                 }
                 if revealed && !hand.is_empty() {div {class:"own-revealed-hand", RevealedHand {hand:hand.clone(),owner:player_name(&me),points:0} }}
             }
@@ -230,14 +237,14 @@ pub fn Game() -> Element {
                         button {class:"text-button",onclick:move |_|{net::emit("leave_lobby",json!(LOBBY.read().lobby_id),None);reset_to_menu();spawn(refresh_menu());},{t("Return home")}}
                     }
                 }
-                div {class:"final-scores",for id in state.players.iter(){div {span {"{player_name(id)}"} ScoreReadout {score:state.scores.get(id).copied().unwrap_or_default()}}}}
+                div {class:"final-scores",for id in state.players.iter(){div {span {"{player_name(id)}"} ScoreReadout {telefon:state.mode=="telefon",score:state.scores.get(id).copied().unwrap_or_default()}}}}
                 details {class:"round-score-details",summary {{t("Score details")}} p {{t("The finished board stays visible until the next round.")}} if state.scores.values().any(|score|score.temporary>0) {p {{t("Pending points bank once consecutive wins take them above 12. Losing a round clears pending points.")}}}}
             }}
             if state.status=="playing" {
                 div {class:"rack-area",
                     div {class:"rack-caption",role:"status",aria_live:"polite",aria_atomic:"true",span {{crate::feedback::guidance(&state,&me,busy,connected())}} if my_turn && !busy {small {{t("or tap a tile, then an end")}}}}
                     div {class:"tile-rack",for (index,tile) in hand.iter().copied().enumerate(){
-                        {let sides=crate::board::can_play_sides(&state,&me,tile);let legal=sides.0||sides.1;let id=format!("rack-tile-{index}");let source=id.clone();let start=drag.clone();let click=drag.clone();rsx! {
+                        {let sides=crate::board::can_play_sides(&state,&me,tile);let legal=if state.mode=="telefon"{crate::board::placements(&state,&me).iter().any(|(t,_)|*t==tile)}else{sides.0||sides.1};let id=format!("rack-tile-{index}");let source=id.clone();let start=drag.clone();let click=drag.clone();rsx! {
                             button {id, class:format!("rack-tile {} {} {}",if legal{"legal-tile"}else{"quiet-tile"},if selected()==Some(tile){"chosen-tile"}else{""},if placement().as_ref().is_some_and(|p|p.tile==tile){"tile-submitting"}else{""}),disabled:!my_turn || !legal || busy,aria_label:format!("{} · {} · {}",tile[0],tile[1],t(if legal {"playable"} else {"cannot play"})),aria_pressed:selected()==Some(tile),
                                 onpointerdown:move |e|{if e.is_primary() && e.trigger_button()==Some(dioxus::html::input_data::MouseButton::Primary){e.prevent_default();let p=e.client_coordinates();start.begin(tile,e.pointer_id(),p.x,p.y,&source);}},
                                 onclick:move |_|{if click.allow_click(){selected.set(Some(tile));}},
@@ -246,7 +253,7 @@ pub fn Game() -> Element {
                         }}
                     }}
                     div {class:"rack-actions",button {class:"market-button glass-capsule",disabled:busy||!crate::board::can_draw(&state,&me),onclick:move |_|request("draw_market",json!({}),pending),span {class:"market-icon","▤"} strong {{t("Draw")}} span {"{state.market_count}"}}
-                        div {class:"reactions",role:"group",aria_label:t("Quick reactions, swipe for more"),tabindex:"0",for emoji in REACTIONS {button {class:"reaction",aria_label:tf("Send reaction {emoji}", &[("emoji", (emoji).to_string())]),onclick:move |_|action("send_reaction",json!({"emoji":emoji})),"{emoji}"}}}
+                        div {id:"emote-list",class:"reactions",role:"group",aria_label:t("Quick reactions, swipe for more"),tabindex:"0",for emoji in crate::reactions::ordered(&EMOTE_USAGE.read()) {button {key:"{emoji}",class:"reaction",aria_label:tf("Send reaction {emoji}", &[("emoji", (emoji).to_string())]),onclick:move |_|action("send_reaction",json!({"emoji":emoji})),"{emoji}"}}}
                         button {class:"pass-button glass-capsule",disabled:busy||!crate::board::can_pass(&state,&me),onclick:move |_|request("pass_turn",json!({}),pending),{t("Pass →")}}
                     }
                 }
@@ -276,7 +283,7 @@ fn Seat(id: String, state: SGameState, position: String) -> Element {
     let name = player_name(&id);
     let count = state.opponent_hand_counts.get(&id).copied().unwrap_or(0);
     rsx! {div {class:format!("opponent-seat seat-{position} {}",if active{"seat-active"}else{""}),
-        div {class:"seat-badge glass-capsule",span {class:"seat-avatar","{name.chars().next().unwrap_or('•')}"} div {strong {"{name}"}ScoreReadout {score:state.scores.get(&id).copied().unwrap_or_default()}} span {class:"tile-count","{count}"}}
+        div {class:"seat-badge glass-capsule",span {class:"seat-avatar","{name.chars().next().unwrap_or('•')}"} div {strong {"{name}"}ScoreReadout {telefon:state.mode=="telefon",score:state.scores.get(&id).copied().unwrap_or_default()}} span {class:"tile-count","{count}"}}
         ReactionBubble {user_id:id.clone()}
         if matches!(state.status.as_str(),"round_end"|"finished") {
             RevealedHand {hand:state.hands.get(&id).cloned().unwrap_or_default(),owner:name.clone(),points:if state.last_winner.as_ref()==Some(&id){0}else{crate::board::hand_points(state.hands.get(&id).map(Vec::as_slice).unwrap_or_default())}}
@@ -292,6 +299,9 @@ fn Board(
     placement: Option<PendingPlacement>,
     onplace: EventHandler<String>,
 ) -> Element {
+    if state.mode == "telefon" {
+        return rsx! { super::telefon::TelefonBoard {state,selected,busy,placement,onplace} };
+    }
     let dimensions = use_signal(|| (700., 300.));
     let observer = use_hook(|| Rc::new(RefCell::new(None::<BoardResize>)));
     let cleanup = observer.clone();

@@ -16,6 +16,11 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 
 pub fn router(state: Arc<AppState>) -> Router {
+    game_router(state.clone()).merge(shared_router(state))
+}
+
+/// Account authority and the friend graph are shared by both game origins.
+pub(crate) fn shared_router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/api/auth/register", post(register))
         .route("/api/auth/login", post(login))
@@ -25,6 +30,26 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/auth/logout-others", post(logout_others))
         .route("/api/auth/upgrade", post(upgrade))
         .route("/api/auth/reset-password", post(reset_password))
+        .route("/api/friends", get(friends_list))
+        .route("/api/friends/request", post(friend_request))
+        .route("/api/friends/accept", post(friend_accept))
+        .route("/api/friends/reject", post(friend_reject))
+        .route("/api/friends/cancel", post(friend_cancel))
+        .route("/api/friends/{target_user_id}", delete(friend_remove))
+        .with_state(state)
+}
+
+fn game_router(state: Arc<AppState>) -> Router {
+    Router::new()
+        .route(
+            "/api/health",
+            get(|State(app): State<Arc<AppState>>| async move {
+                (
+                    [(axum::http::header::CACHE_CONTROL, "no-store")],
+                    Json(json!({"gameId":"dominogo","hostId":app.host_id})),
+                )
+            }),
+        )
         .route("/api/matches/history", get(match_history))
         .route("/api/matches/{id}", delete(delete_match))
         .route("/api/lobbies", post(create_lobby))
@@ -33,12 +58,6 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/lobbies/{id}/add-bot", post(add_bot))
         .route("/api/lobbies/{id}/kick", post(kick))
         .route("/api/lobbies/{id}/start", post(start_game))
-        .route("/api/friends", get(friends_list))
-        .route("/api/friends/request", post(friend_request))
-        .route("/api/friends/accept", post(friend_accept))
-        .route("/api/friends/reject", post(friend_reject))
-        .route("/api/friends/cancel", post(friend_cancel))
-        .route("/api/friends/{target_user_id}", delete(friend_remove))
         .route("/api/stats/{user_id}", get(get_stats))
         .route("/api/leaderboard", get(leaderboard))
         .with_state(state)
@@ -470,6 +489,13 @@ async fn create_lobby(auth: AuthUser, Json(body): JsonBody) -> Result<Json<Value
     let app = app();
     let lobby_id = random_base36(7).to_uppercase();
     let max_players = body.get("maxPlayers").and_then(Value::as_i64);
+    let mode: domino_core::GameMode = body
+        .get("mode")
+        .map(|v| serde_json::from_value(v.clone()))
+        .transpose()
+        .map_err(|_| err(StatusCode::BAD_REQUEST, "Choose 101 or 5-lik (Telefon)"))?
+        .unwrap_or(domino_core::GameMode::OneOhOne);
+    let mode = serde_json::to_value(mode).unwrap();
     let draw_rule: DrawRule = body
         .get("drawRule")
         .map(|v| serde_json::from_value(v.clone()))
@@ -482,8 +508,8 @@ async fn create_lobby(auth: AuthUser, Json(body): JsonBody) -> Result<Json<Value
         return Err(err(StatusCode::BAD_REQUEST, "Choose 2, 3, or 4 players"));
     }
     match app.db.execute(
-        "INSERT INTO lobbies (id, creator_id, max_players, draw_rule) VALUES (?, ?, ?, ?)",
-        rusqlite::params![lobby_id, auth.id, max_players, draw_rule.as_str().unwrap()],
+        "INSERT INTO lobbies (id, creator_id, max_players, draw_rule, game_mode) VALUES (?, ?, ?, ?, ?)",
+        rusqlite::params![lobby_id, auth.id, max_players, draw_rule.as_str().unwrap(), mode.as_str().unwrap()],
     ) {
         Ok(_) => {}
         Err(_) => return Err(internal_error("Failed to create lobby")),
@@ -516,10 +542,14 @@ async fn join_lobby(
                 "creator_id": r.get::<_, Option<String>>(1).unwrap_or_default(),
                 "max_players": r.get::<_, i64>(2)?,
                 "draw_rule": r.get::<_, String>("draw_rule")?,
+                "mode": r.get::<_, String>("game_mode")?,
                 "status": r.get::<_, Option<String>>(3).unwrap_or_default().unwrap_or_else(|| "waiting".into())
             }))
         },
     ).unwrap_or_default() else {
+        if app.db.query_one("SELECT 1 FROM uno_tables WHERE id = ?", [&lobby_id], |_| Ok(())).ok().flatten().is_some() {
+            return Err((StatusCode::CONFLICT, Json(json!({"error":"This table belongs to UnoGo", "code":"WRONG_GAME", "gameId":"unogo", "url":format!("https://uno.driveatbaku.games/?join={lobby_id}")}))).into_response());
+        }
         return Err(err(StatusCode::NOT_FOUND, "Lobby not found"));
     };
     let creator = lobby["creator_id"].as_str().unwrap_or_default().to_string();
@@ -570,6 +600,7 @@ async fn join_lobby(
         "players": players,
         "maxPlayers": max_players,
         "drawRule": lobby["draw_rule"],
+        "mode": lobby["mode"],
         "creatorId": creator,
         "status": game_status
     })))
@@ -856,11 +887,13 @@ async fn match_history(
     let mut matches: Vec<Value> = Vec::new();
     for m in rows {
         let mut scores: Option<Value> = None;
+        let mut mode = json!("101");
         let mut winner: Option<String> = None;
         let mut game_status = m["status"].clone();
         if let Some(raw) = m["state_json"].as_str() {
             if let Ok(state) = serde_json::from_str::<Value>(raw) {
                 scores = state.get("scores").cloned();
+                mode = state.get("mode").cloned().unwrap_or(json!("101"));
                 if let Some(status) = state.get("status").and_then(Value::as_str) {
                     game_status = json!(status);
                 }
@@ -869,7 +902,7 @@ async fn match_history(
                         for p in players {
                             let id = p.as_str().unwrap_or_default().to_string();
                             let perm = state["scores"][&id]["permanent"].as_i64().unwrap_or(0);
-                            if perm >= 101 {
+                            if perm >= if state["mode"] == "telefon" { 365 } else { 101 } {
                                 winner = Some(id);
                                 break;
                             }
@@ -899,6 +932,7 @@ async fn match_history(
             "player_count": m["player_count"],
             "players": players,
             "scores": scores,
+            "mode": mode,
             "winner": winner
         }));
     }
@@ -994,7 +1028,10 @@ struct LeaderboardQuery {
 }
 
 /// Half-open UTC calendar windows. Weeks begin on Monday.
-fn ranking_window(period: &str, now: chrono::DateTime<chrono::Utc>) -> Option<(i64, i64)> {
+pub(crate) fn ranking_window(
+    period: &str,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Option<(i64, i64)> {
     use chrono::{Datelike, Duration, TimeZone, Utc};
     let day = now.date_naive();
     let (start, end) = match period {
@@ -1330,7 +1367,7 @@ async fn friends_list(
                 .by_user
                 .get(&friend_id)
                 .map(|e| !e.is_empty())
-                .unwrap_or(false);
+                .unwrap_or(false) || app.db.query_one("SELECT 1 FROM users WHERE id=? AND last_active_at>datetime('now','-20 seconds')",[&friend_id],|_|Ok(())).ok().flatten().is_some();
             json!({ "id": friend_id, "username": username, "isOnline": is_online })
         })
         .collect();

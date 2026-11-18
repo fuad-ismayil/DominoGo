@@ -43,6 +43,7 @@ impl Db {
     fn migrate(&self) -> rusqlite::Result<()> {
         let conn = self.conn();
         conn.execute_batch(SCHEMA)?;
+        conn.execute_batch(include_str!("../../../../unogo/server/schema.sql"))?;
         // TS wraps each ALTER in try/catch; we only run when the column is absent.
         ensure_column(&conn, "sessions", "expires_at", "DATETIME")?;
         conn.execute(
@@ -104,6 +105,28 @@ impl Db {
         self.conn().execute(sql, params)
     }
 
+    pub fn reaction_usage(
+        &self,
+        user_id: &str,
+    ) -> rusqlite::Result<std::collections::BTreeMap<String, u64>> {
+        self.query_all(
+            "SELECT emoji, COUNT(*) FROM reaction_uses WHERE user_id = ? GROUP BY emoji",
+            [user_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .map(|rows| rows.into_iter().collect())
+    }
+
+    pub fn record_reaction(&self, user_id: &str, emoji: &str) -> rusqlite::Result<()> {
+        // Unique use records merge by union during offline phone/PC sync:
+        // concurrent clicks and interrupted syncs cannot lose/double counts.
+        self.execute(
+            "INSERT INTO reaction_uses (id, user_id, emoji) VALUES (?, ?, ?)",
+            rusqlite::params![uuid::Uuid::new_v4().to_string(), user_id, emoji],
+        )?;
+        Ok(())
+    }
+
     /// INSERT (or other statement) followed by `last_insert_rowid()` under the
     /// SAME connection lock — DB-level inserts from concurrent sockets could
     /// otherwise read a foreign rowid.
@@ -117,8 +140,9 @@ impl Db {
     /// `cleanupStaleGuests` — the exact seven statements from `server.ts`,
     /// deleting guests whose `last_active_at` is ≥24 h old.
     pub fn cleanup_stale_guests(&self) -> rusqlite::Result<u64> {
-        let cond = "SELECT id FROM users WHERE is_guest = 1 AND id NOT LIKE 'ai_%' AND last_active_at < datetime('now', '-24 hours') AND id NOT IN (SELECT lp.user_id FROM lobby_players lp JOIN lobbies l ON l.id = lp.lobby_id WHERE l.status IN ('playing', 'stopped'))";
-        const STMTS: [&str; 7] = [
+        let cond = "SELECT id FROM users WHERE is_guest = 1 AND id NOT LIKE 'ai_%' AND last_active_at < datetime('now', '-24 hours') AND id NOT IN (SELECT lp.user_id FROM lobby_players lp JOIN lobbies l ON l.id = lp.lobby_id WHERE l.status IN ('playing', 'stopped')) AND id NOT IN (SELECT s.user_id FROM uno_seats s JOIN uno_tables t ON t.id=s.table_id WHERE s.user_id IS NOT NULL AND t.status IN ('playing','paused'))";
+        const STMTS: [&str; 8] = [
+            "DELETE FROM uno_seats WHERE user_id IN (%COND%) AND table_id IN (SELECT id FROM uno_tables WHERE status='waiting')",
             "DELETE FROM sessions WHERE user_id IN (%COND%)",
             "DELETE FROM lobby_players WHERE user_id IN (%COND%)",
             "DELETE FROM lobbies WHERE creator_id IN (%COND%)",
@@ -179,6 +203,14 @@ CREATE TABLE IF NOT EXISTS sessions (
     expires_at DATETIME,
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS reaction_uses (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    emoji TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS reaction_uses_by_user ON reaction_uses (user_id, emoji);
 
 CREATE TABLE IF NOT EXISTS lobbies (
     id TEXT PRIMARY KEY,
@@ -361,5 +393,55 @@ mod tests {
                 .unwrap(),
             Some(1700)
         );
+    }
+    #[test]
+    fn reaction_usage_survives_reopen_and_stays_private_to_each_account() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("usage.sqlite");
+        {
+            let db = Db::open(path.to_str().unwrap()).unwrap();
+            for id in ["A", "B"] {
+                db.execute("INSERT INTO users (id,username) VALUES (?,?)", [id, id])
+                    .unwrap();
+            }
+            db.record_reaction("A", "😭").unwrap();
+            db.record_reaction("A", "😭").unwrap();
+            db.record_reaction("B", "😂").unwrap();
+            assert!(db.record_reaction("missing", "😭").is_err());
+        }
+        let reopened = Db::open(path.to_str().unwrap()).unwrap();
+        assert_eq!(
+            reopened.reaction_usage("A").unwrap(),
+            [("😭".into(), 2)].into()
+        );
+        assert_eq!(
+            reopened.reaction_usage("B").unwrap(),
+            [("😂".into(), 1)].into()
+        );
+        reopened
+            .execute("DELETE FROM users WHERE id='A'", [])
+            .unwrap();
+        assert!(reopened.reaction_usage("A").unwrap().is_empty());
+    }
+
+    #[test]
+    fn simultaneous_reactions_do_not_lose_increments() {
+        let db = std::sync::Arc::new(Db::open_in_memory().unwrap());
+        db.execute("INSERT INTO users (id,username) VALUES ('A','A')", [])
+            .unwrap();
+        let threads: Vec<_> = (0..8)
+            .map(|_| {
+                let db = db.clone();
+                std::thread::spawn(move || {
+                    for _ in 0..25 {
+                        db.record_reaction("A", "😭").unwrap();
+                    }
+                })
+            })
+            .collect();
+        for t in threads {
+            t.join().unwrap();
+        }
+        assert_eq!(db.reaction_usage("A").unwrap()["😭"], 200);
     }
 }

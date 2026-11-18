@@ -26,6 +26,38 @@ pub fn get_ai_move(state: &GameState, ai_id: &str) -> AIAction {
     let mut best = None;
     let mut best_score = i32::MIN;
     for (tile, end) in moves {
+        if state.mode == crate::GameMode::Telefon {
+            // Simulate using only our hand and public topology. Opponent hands
+            // and market values are removed so they cannot affect the policy.
+            let mut public = state.clone();
+            for (id, h) in &mut public.hands {
+                if id != ai_id {
+                    *h = vec![[0, 0]; h.len()];
+                }
+            }
+            public.market.clear();
+            public.turn_index = public.players.iter().position(|p| p == ai_id).unwrap_or(0);
+            if let Ok(next) = crate::play_tile(&public, ai_id, tile, end) {
+                let gain = next.scores[ai_id].permanent - state.scores[ai_id].permanent;
+                let score = gain * 30
+                    + i32::from(tile[0] + tile[1]) * 4
+                    + if next.hands[ai_id].is_empty() {
+                        1000
+                    } else {
+                        0
+                    }
+                    + if next.status == crate::GameStatus::Finished {
+                        100_000
+                    } else {
+                        0
+                    };
+                if score > best_score {
+                    best_score = score;
+                    best = Some(AIAction::Play { tile, end });
+                }
+            }
+            continue;
+        }
         let mut ends = state.open_ends;
         if state.board.is_empty() {
             ends = [Some(tile[0]), Some(tile[1])];

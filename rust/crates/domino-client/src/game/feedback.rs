@@ -20,8 +20,9 @@ pub fn guidance(state: &SGameState, user: &str, pending: bool, connected: bool) 
     }
     let hand = state.hands.get(user).map(Vec::as_slice).unwrap_or_default();
     let playable = hand.iter().find(|tile| {
-        let sides = board::can_play_sides(state, user, **tile);
-        sides.0 || sides.1
+        board::placements(state, user)
+            .iter()
+            .any(|(t, _)| t == *tile)
     });
     if state.board.is_empty() {
         if let Some(tile) = playable {
@@ -50,6 +51,11 @@ pub fn guidance(state: &SGameState, user: &str, pending: bool, connected: bool) 
     if board::can_pass(state, user) {
         return t("No matching tile and no draw available · pass your turn.");
     }
+    if state.mode == "telefon" {
+        return t(
+            "Select a glowing tile, then a highlighted end. Side branches must score in fives.",
+        );
+    }
     if let [Some(left), Some(right)] = state.open_ends {
         return tf(
             "Match {left} or {right} · select a glowing tile, then an end.",
@@ -62,6 +68,9 @@ pub fn guidance(state: &SGameState, user: &str, pending: bool, connected: bool) 
 /// Final totals cannot establish whether this round promoted earlier pending points.
 /// Describe observable totals rather than inventing a previous score or lost points.
 pub fn score_explanation(state: &SGameState) -> String {
+    if state.mode == "telefon" {
+        return t("Open ends score in fives. Round bonuses are rounded to the nearest five. First to 365 wins.");
+    }
     if !matches!(state.status.as_str(), "round_end" | "finished") {
         return String::new();
     }
@@ -98,6 +107,9 @@ pub fn score_explanation(state: &SGameState) -> String {
 
 /// Explain an observed score transition; mismatched or incomplete snapshots use totals only.
 pub fn score_transaction(state: &SGameState, previous: Option<&SGameState>, user: &str) -> String {
+    if state.mode == "telefon" {
+        return score_explanation(state);
+    }
     let fallback = || score_explanation(state);
     let Some(previous) = previous.filter(|old| {
         old.status == "playing"

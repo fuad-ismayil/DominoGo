@@ -31,3 +31,9 @@ Run the full acceptance harness against an isolated server/database with `DOMINO
 ## Portable build
 
 From `rust/crates/domino-client`, run `dx build --web --release`. From `rust`, run `cargo build -p domino-server --release`. Serve the generated web/public directory using `DOMINO_STATIC_DIR`.
+
+## Android hosting
+
+The `android-host` companion runs the same Rust server directly on an ARM64 Android phone, with Start/Stop, public-link sharing and a hosting notification. Build/install with `./android-host/build.ps1 -Install`. The paired phone's dedicated permanent address is `https://domino.driveatbaku.games`.
+
+The PC database is copied privately to the phone, then synced over authorized USB or wireless ADB when both servers are stopped. Enable the PC helper with `./android-host/start-sync.ps1 -InstallStartup`; `-Stop` disables it. Newer match saves win, and per-account history hides sync without erasing other players' history. See [Android setup and recovery](android-host/README.md).

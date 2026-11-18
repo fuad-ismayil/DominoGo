@@ -29,7 +29,17 @@ pub fn create_table_game(
         )
         .map_err(|e| e.to_string())?
         .ok_or("Table not found")?;
-    let mut state = domino_core::create_game(players, domino_core::GameMode::OneOhOne);
+    let mode: String = app
+        .db
+        .query_one(
+            "SELECT game_mode FROM lobbies WHERE id = ?",
+            [lobby_id],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?
+        .ok_or("Table not found")?;
+    let mode = serde_json::from_value(Value::String(mode)).map_err(|e| e.to_string())?;
+    let mut state = domino_core::create_game(players, mode);
     state.draw_rule = serde_json::from_value(Value::String(rule)).map_err(|e| e.to_string())?;
     Ok(state)
 }
@@ -137,7 +147,13 @@ pub fn clear_turn_timer(app: &AppState, lobby_id: &str) {
 
 /// `startTurnTimer` — spawn a 30 s watchdog for the current human player only.
 pub fn start_turn_timer(app: &Arc<AppState>, lobby_id: &str, state: &Value) {
+    start_turn_timer_for(app, lobby_id, state, TURN_TIMER_MS);
+}
+fn start_turn_timer_for(app: &Arc<AppState>, lobby_id: &str, state: &Value, duration: u64) {
     clear_turn_timer(app, lobby_id);
+    if !app.games.domino.enabled() {
+        return;
+    }
 
     // Don't start timers for non-playing states
     if status_of(state) != "playing" {
@@ -156,7 +172,7 @@ pub fn start_turn_timer(app: &Arc<AppState>, lobby_id: &str, state: &Value) {
         return;
     }
 
-    let deadline = now_ms() + TURN_TIMER_MS as i64;
+    let deadline = now_ms() + duration as i64;
     app.deadlines
         .write()
         .unwrap_or_else(|e| e.into_inner())
@@ -167,6 +183,7 @@ pub fn start_turn_timer(app: &Arc<AppState>, lobby_id: &str, state: &Value) {
         lobby_id.to_string(),
         current_player,
         deadline,
+        duration,
     ));
     app.turn_timers
         .lock()
@@ -179,12 +196,17 @@ async fn turn_timer_tick(
     lobby_id: String,
     expected_player: String,
     expected_deadline: i64,
+    duration: u64,
 ) {
-    tokio::time::sleep(Duration::from_millis(TURN_TIMER_MS)).await;
+    tokio::time::sleep(Duration::from_millis(duration)).await;
 
     let _transition = crate::domain::MUTATIONS
         .lock()
         .unwrap_or_else(|e| e.into_inner());
+
+    if !app.games.domino.enabled() {
+        return;
+    }
 
     if app
         .deadlines
@@ -255,6 +277,9 @@ pub fn count_humans(state: &Value) -> usize {
 /// `checkAndRunAITurn` — if the current player is an AI spawn the delayed
 /// turn; the `ai_spawns` dedupe keeps concurrent triggers from double-acting.
 pub fn check_and_run_ai_turn(app: &Arc<AppState>, lobby_id: &str, state: &Value) {
+    if !app.games.domino.enabled() {
+        return;
+    }
     if status_of(state) != "playing" {
         return;
     }
@@ -265,7 +290,8 @@ pub fn check_and_run_ai_turn(app: &Arc<AppState>, lobby_id: &str, state: &Value)
         return;
     }
 
-    let key = (lobby_id.to_string(), current_player.clone());
+    let generation = app.games.domino.generation();
+    let key = (lobby_id.to_string(), current_player.clone(), generation);
     let inserted = app
         .ai_spawns
         .lock()
@@ -275,13 +301,18 @@ pub fn check_and_run_ai_turn(app: &Arc<AppState>, lobby_id: &str, state: &Value)
         return; // an AI task for this exact turn is already pending
     }
 
-    tokio::spawn(ai_turn(app.clone(), lobby_id.to_string(), current_player));
+    tokio::spawn(ai_turn(
+        app.clone(),
+        lobby_id.to_string(),
+        current_player,
+        generation,
+    ));
 }
 
 /// Removes the dedupe key on every exit path (success, early return, panic).
 struct AiSpawnGuard {
     app: Arc<AppState>,
-    key: (String, String),
+    key: (String, String, u64),
 }
 
 impl Drop for AiSpawnGuard {
@@ -294,10 +325,10 @@ impl Drop for AiSpawnGuard {
     }
 }
 
-async fn ai_turn(app: Arc<AppState>, lobby_id: String, current_player: String) {
+async fn ai_turn(app: Arc<AppState>, lobby_id: String, current_player: String, generation: u64) {
     let guard = AiSpawnGuard {
         app: app.clone(),
-        key: (lobby_id.clone(), current_player.clone()),
+        key: (lobby_id.clone(), current_player.clone(), generation),
     };
 
     tokio::time::sleep(Duration::from_millis(AI_DELAY_MS)).await;
@@ -305,6 +336,10 @@ async fn ai_turn(app: Arc<AppState>, lobby_id: String, current_player: String) {
     let _transition = crate::domain::MUTATIONS
         .lock()
         .unwrap_or_else(|e| e.into_inner());
+
+    if !app.games.domino.enabled() || app.games.domino.generation() != generation {
+        return;
+    }
 
     // Ensure it's still the AI's turn
     let Some(state) = load_state(&app, &lobby_id) else {
@@ -406,6 +441,10 @@ pub fn cleanup_unstarted_tables(
     idle: &mut std::collections::HashMap<String, i64>,
     now: i64,
 ) -> Result<usize, String> {
+    if !app.games.domino.enabled() {
+        idle.clear();
+        return Ok(0);
+    }
     let _transition = crate::domain::MUTATIONS
         .lock()
         .unwrap_or_else(|e| e.into_inner());
@@ -462,6 +501,9 @@ pub fn spawn_guest_cleanup(app: Arc<AppState>) {
 
 /// Re-arm unfinished matches after a process restart. Stored hands remain authoritative.
 pub fn recover_matches(app: &Arc<AppState>) {
+    if !app.games.domino.enabled() {
+        return;
+    }
     let rows = app
         .db
         .query_all("SELECT lobby_id, state_json FROM game_states", [], |r| {
@@ -469,11 +511,44 @@ pub fn recover_matches(app: &Arc<AppState>) {
         })
         .unwrap_or_default();
     for (lobby, raw) in rows {
-        if let Ok(state) = serde_json::from_str::<Value>(&raw) {
-            start_turn_timer(app, &lobby, &state);
+        if let Ok(mut state) = serde_json::from_str::<Value>(&raw) {
+            let remaining = state["hostRemainingMs"].as_u64().unwrap_or(TURN_TIMER_MS);
+            if state.get("hostRemainingMs").is_some() {
+                state.as_object_mut().unwrap().remove("hostRemainingMs");
+                if update_game_state(app, &lobby, &state).is_err() {
+                    continue;
+                }
+            }
+            start_turn_timer_for(app, &lobby, &state, remaining);
             check_and_run_ai_turn(app, &lobby, &state);
         }
     }
+}
+
+pub fn suspend_host_matches(app: &Arc<AppState>) -> Result<(), String> {
+    let rows = app
+        .db
+        .query_all("SELECT lobby_id,state_json FROM game_states", [], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+        })
+        .map_err(|e| e.to_string())?;
+    for (id, raw) in rows {
+        if let Ok(mut state) = serde_json::from_str::<Value>(&raw) {
+            if status_of(&state) == "playing" {
+                let remaining = app
+                    .deadlines
+                    .read()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .get(&id)
+                    .map(|d| d.saturating_sub(now_ms()).max(0) as u64)
+                    .unwrap_or_else(|| state["hostRemainingMs"].as_u64().unwrap_or(TURN_TIMER_MS));
+                state["hostRemainingMs"] = serde_json::json!(remaining);
+                update_game_state(app, &id, &state)?;
+            }
+        }
+        clear_turn_timer(app, &id);
+    }
+    Ok(())
 }
 
 /// Preserve a completed/abandoned match before its lobby starts a rematch.
@@ -482,7 +557,7 @@ pub fn archive_match(app: &AppState, lobby_id: &str, state: &Value) -> Result<St
     let id = uuid::Uuid::new_v4().to_string().to_uppercase();
     let players = app.db.query_all("SELECT u.id, u.username FROM lobby_players lp JOIN users u ON u.id = lp.user_id WHERE lp.lobby_id = ? ORDER BY lp.joined_at", [lobby_id], |r| Ok(serde_json::json!({"id":r.get::<_,String>(0)?, "username":r.get::<_,String>(1)?}))).map_err(|e|e.to_string())?;
     let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-    let summary = serde_json::json!({"id":id, "status":if status_of(state)=="finished" {"finished"} else {"archived"}, "created_at":now,"updated_at":now,"player_count":players.len(),"players":players,"scores":state["scores"],"winner":if status_of(state)=="finished" {state["lastWinner"].clone()} else {Value::Null}});
+    let summary = serde_json::json!({"id":id, "status":if status_of(state)=="finished" {"finished"} else {"archived"}, "created_at":now,"updated_at":now,"player_count":players.len(),"players":players,"mode":state["mode"],"scores":state["scores"],"winner":if status_of(state)=="finished" {state["lastWinner"].clone()} else {Value::Null}});
     let mut conn = app.db.conn();
     let tx = conn.transaction().map_err(|e| e.to_string())?;
     tx.execute(
@@ -515,7 +590,9 @@ mod tests {
 
     fn setup(players: &[&str]) -> (Arc<AppState>, GameState) {
         let app = Arc::new(AppState {
+            host_id: uuid::Uuid::new_v4().to_string(),
             db: Db::open_in_memory().unwrap(),
+            games: crate::lifecycle::Games::default(),
             turn_timers: Mutex::new(HashMap::new()),
             deadlines: RwLock::new(HashMap::new()),
             stop_votes: RwLock::new(HashMap::new()),
@@ -779,5 +856,26 @@ mod tests {
                 .unwrap(),
             Some(0)
         );
+    }
+    #[test]
+    fn telefon_table_creation_and_restored_topology_keep_their_mode() {
+        let (app, _) = setup(&["A", "B"]);
+        app.db
+            .execute(
+                "UPDATE lobbies SET game_mode = 'telefon' WHERE id = 'test'",
+                [],
+            )
+            .unwrap();
+        for _ in 0..2 {
+            let core = create_table_game(&app, "test", &["A", "B"]).unwrap();
+            assert_eq!(core.mode, domino_core::GameMode::Telefon);
+            let actor = &core.players[core.turn_index];
+            let placed =
+                domino_core::play_tile(&core, actor, [2, 3], domino_core::End::Left).unwrap();
+            save(&app, &placed);
+            let restored = crate::domain::to_core(&load_state(&app, "test").unwrap()).unwrap();
+            assert_eq!(restored, placed);
+            assert_eq!(restored.scores[actor].permanent, 5);
+        }
     }
 }

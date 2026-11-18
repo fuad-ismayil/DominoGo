@@ -402,12 +402,13 @@ pub async fn matches_delete(id: &str) -> Result<Value, RestError> {
 pub async fn create_lobby(
     max_players: i64,
     draw_rule: domino_core::DrawRule,
+    mode: domino_core::GameMode,
 ) -> Result<Value, RestError> {
     http_json(
         "POST",
         "/api/lobbies",
         true,
-        Some(json!({ "maxPlayers": max_players, "drawRule": draw_rule })),
+        Some(json!({ "maxPlayers": max_players, "drawRule": draw_rule, "mode": mode })),
     )
     .await
 }

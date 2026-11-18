@@ -123,3 +123,8 @@
 .menu-shell .ranking-periods button.selected{border-color:var(--club-focus);background:none;color:var(--club-focus);}
 .ranking-swipe + .ranking-calendar-note{margin-top:16px;}
 @media(prefers-reduced-motion:reduce){.ranking-swipe .ranking-panel{animation:none!important;transition:none!important;}}
+
+.setup-card .mode-picker{grid-template-columns:repeat(2,minmax(0,1fr))}
+.mode-picker .seat-option{min-width:0;padding:18px 10px}
+.mode-picker .seat-option strong{font-size:clamp(15px,2.6vw,22px);overflow-wrap:anywhere}
+.mode-picker .seat-option span{white-space:normal;line-height:1.5;letter-spacing:normal}

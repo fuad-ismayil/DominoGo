@@ -5,3 +5,7 @@
 rust/target/
 rust/target-*/
 database.sqlite*
+.domino-sync.lock
+.impeccable/
+rust/*-errors.txt
+__pycache__/

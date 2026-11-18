@@ -1,0 +1,39 @@
+{
+  "originalRequest": "Read unogo/unogo-gdd.md and create UnoGo in unogo/. User approved continuing the Navy browser interface: reuse DominoGo menus, playable card board, invites in two browsers through a complete round, account controls, history and leaderboard.",
+  "mode": "Operate",
+  "scope": "Established DominoGo world with explicit GDD Navy override; code-led extension, no approved comp. Preserve root DESIGN.md.",
+  "artifact": "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\crates\\uno-client",
+  "product": "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\PRODUCT.md",
+  "direction": "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\docs\\browser-design.md",
+  "gdd": "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\unogo-gdd.md",
+  "incumbentDesign": "C:\\Users\\Fuad\\Desktop\\dominogo\\DESIGN.md",
+  "incumbentScreenshots": [
+    "C:\\Users\\Fuad\\Desktop\\dominogo\\docs\\screenshots\\design-refinement\\after-desktop.png",
+    "C:\\Users\\Fuad\\Desktop\\dominogo\\docs\\screenshots\\design-refinement\\after-phone.png"
+  ],
+  "screenshots": [
+    "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\docs\\screenshots\\entry-desktop.png",
+    "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\docs\\screenshots\\home-desktop.png",
+    "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\docs\\screenshots\\setup-desktop.png",
+    "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\docs\\screenshots\\lobby-desktop.png",
+    "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\docs\\screenshots\\lobby-phone.png",
+    "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\docs\\screenshots\\game-desktop.png",
+    "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\docs\\screenshots\\game-phone.png",
+    "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\docs\\screenshots\\results-desktop.png",
+    "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\docs\\screenshots\\results-phone.png",
+    "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\docs\\screenshots\\color-picker-phone.png",
+    "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\docs\\screenshots\\game-ten-40-desktop.png",
+    "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\docs\\screenshots\\game-ten-40-phone.png",
+    "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\docs\\screenshots\\game-ten-40-small-phone.png",
+    "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\docs\\screenshots\\account-phone-az.png",
+    "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\docs\\screenshots\\account-phone-tr.png",
+    "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\docs\\screenshots\\account-phone-ru.png",
+    "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\docs\\screenshots\\account-phone-en.png",
+    "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\docs\\screenshots\\password-account-desktop.png"
+  ],
+  "captureManifest": "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\docs\\screenshots\\capture-manifest.json",
+  "detector": "C:\\Users\\Fuad\\Desktop\\dominogo\\unogo\\docs\\design-detector.json",
+  "craftFloor": "C:/Users/Fuad/.codex/skills/impeccable/reference/craft-floor.md",
+  "shippingRasters": [],
+  "verification": "All browser workflows passed after password fix, including forced HTTP failure with busy-state recovery, successful password update, cleared error, enabled controls and new credentials verified on DominoGo listener. 29 server tests + 17 client/core tests passed; browser and server clippy checks pass."
+}

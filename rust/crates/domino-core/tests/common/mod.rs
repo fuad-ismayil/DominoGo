@@ -15,6 +15,7 @@ pub fn base_state(players: &[&str]) -> GameState {
         scores.insert((*p).to_string(), PlayerScore::default());
     }
     GameState {
+        telefon: Vec::new(),
         mode: GameMode::OneOhOne,
         draw_rule: Default::default(),
         players: players.iter().map(|p| (*p).to_string()).collect(),

@@ -1,0 +1,191 @@
+{
+  "browser": "Microsoft Edge / Chromium",
+  "requiredViewports": [
+    "1440x960",
+    "390x844",
+    "320x740"
+  ],
+  "captures": [
+    {
+      "path": "entry-desktop.png",
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": true,
+      "required": true,
+      "capturedAt": 1794863266.3636582
+    },
+    {
+      "path": "home-desktop.png",
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": true,
+      "required": true,
+      "capturedAt": 1794863267.171631
+    },
+    {
+      "path": "setup-desktop.png",
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": true,
+      "required": true,
+      "capturedAt": 1794863267.7523215
+    },
+    {
+      "path": "lobby-desktop.png",
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": true,
+      "required": true,
+      "capturedAt": 1794863268.7158477
+    },
+    {
+      "path": "lobby-phone.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fullPage": true,
+      "required": true,
+      "capturedAt": 1794863269.17185
+    },
+    {
+      "path": "game-desktop.png",
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": true,
+      "required": true,
+      "capturedAt": 1794863270.1634092
+    },
+    {
+      "path": "game-phone.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fullPage": true,
+      "required": true,
+      "capturedAt": 1794863270.5707374
+    },
+    {
+      "path": "results-desktop.png",
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": true,
+      "required": true,
+      "capturedAt": 1794863281.8543692
+    },
+    {
+      "path": "results-phone.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fullPage": true,
+      "required": true,
+      "capturedAt": 1794863282.2788086
+    },
+    {
+      "path": "color-picker-phone.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fullPage": true,
+      "required": true,
+      "capturedAt": 1794863284.211403
+    },
+    {
+      "path": "game-ten-40-desktop.png",
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "fullPage": true,
+      "required": true,
+      "capturedAt": 1794863284.7972474
+    },
+    {
+      "path": "game-ten-40-phone.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fullPage": true,
+      "required": true,
+      "capturedAt": 1794863285.2704532
+    },
+    {
+      "path": "game-ten-40-small-phone.png",
+      "viewport": {
+        "width": 320,
+        "height": 740
+      },
+      "fullPage": true,
+      "required": true,
+      "capturedAt": 1794863285.7177622
+    },
+    {
+      "path": "account-phone-az.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fullPage": true,
+      "required": true,
+      "capturedAt": 1794863286.2247653
+    },
+    {
+      "path": "account-phone-tr.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fullPage": true,
+      "required": true,
+      "capturedAt": 1794863286.6549602
+    },
+    {
+      "path": "account-phone-ru.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fullPage": true,
+      "required": true,
+      "capturedAt": 1794863287.1179748
+    },
+    {
+      "path": "account-phone-en.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fullPage": true,
+      "required": true,
+      "capturedAt": 1794863287.54893
+    },
+    {
+      "path": "password-account-desktop.png",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "fullPage": true,
+      "required": true,
+      "capturedAt": 1794863292.9094324
+    }
+  ],
+  "wasmSha256": "7e7cd80e18c3c9278b91aabad2c50906708dfed6b314ebf73984897deb9dba74"
+}

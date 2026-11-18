@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none"><defs><linearGradient id="navy" x1="60" y1="0" x2="450" y2="512" gradientUnits="userSpaceOnUse"><stop stop-color="#214f80"/><stop offset="1" stop-color="#07172f"/></linearGradient></defs><path fill="url(#navy)" d="M0 0h512v512H0z"/><g transform="translate(20.48 20.48) scale(.92)">
+  <g transform="rotate(-19 202 258)">
+    <rect x="105" y="111" width="208" height="302" rx="32" fill="#579cdd"/>
+    <rect x="117" y="123" width="184" height="278" rx="23" stroke="#c2e7ff" stroke-opacity=".45" stroke-width="3"/>
+  </g>
+  <g transform="rotate(-5 250 247)">
+    <rect x="148" y="93" width="208" height="302" rx="32" fill="#a5d9ff"/>
+    <rect x="160" y="105" width="184" height="278" rx="23" stroke="#e8f6ff" stroke-opacity=".65" stroke-width="3"/>
+  </g>
+  <g transform="rotate(12 304 270)">
+    <rect x="197" y="117" width="208" height="302" rx="32" fill="#06172f" fill-opacity=".22" transform="translate(-4 8)"/>
+    <rect x="197" y="109" width="208" height="302" rx="32" fill="#f0f8ff"/>
+    <rect x="210" y="122" width="182" height="276" rx="21" stroke="#c8e2f4" stroke-width="3"/>
+    <path d="M252 202v78c0 30 17 47 49 47s49-17 49-47v-78" stroke="#123963" stroke-width="29" stroke-linecap="round"/>
+    <path d="m246 155 12 0" stroke="#123963" stroke-width="8" stroke-linecap="round"/>
+    <rect x="253" y="356" width="19" height="9" rx="4.5" fill="#db6275"/>
+    <rect x="279" y="356" width="19" height="9" rx="4.5" fill="#e9bc59"/>
+    <rect x="305" y="356" width="19" height="9" rx="4.5" fill="#53a58e"/>
+    <rect x="331" y="356" width="19" height="9" rx="4.5" fill="#579cdd"/>
+  </g>
+</g></svg>

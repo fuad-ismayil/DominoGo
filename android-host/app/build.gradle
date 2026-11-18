@@ -1,0 +1,44 @@
+plugins { id 'com.android.application' }
+
+def sourceRevision = ''
+def sourceBaseRevision = ''
+def sourceDirty = true
+try {
+    def output = new ByteArrayOutputStream()
+    exec { commandLine 'git', '-C', rootDir.parent, 'rev-parse', 'HEAD'; standardOutput = output; errorOutput = new ByteArrayOutputStream(); ignoreExitValue = true }
+    sourceRevision = output.toString('UTF-8').trim()
+    sourceBaseRevision = sourceRevision
+    def status = new ByteArrayOutputStream()
+    exec { commandLine 'git', '-C', rootDir.parent, 'status', '--porcelain'; standardOutput = status; errorOutput = new ByteArrayOutputStream(); ignoreExitValue = true }
+    sourceDirty = !status.toString('UTF-8').trim().isEmpty()
+    if (sourceDirty) sourceRevision = ''
+} catch (Exception ignored) { }
+if (!(sourceRevision ==~ /[0-9a-f]{40}/)) sourceRevision = ''
+
+android {
+    namespace 'games.dominogo.host'
+    compileSdk 35
+    compileSdkExtension 15
+    buildToolsVersion '35.0.1'
+    defaultConfig {
+        applicationId 'games.dominogo.host'
+        minSdk 26
+        targetSdk 35
+        versionCode 13
+        versionName '2.2.2'
+        buildConfigField 'String', 'SOURCE_REVISION', '"' + sourceRevision + '"'
+        buildConfigField 'String', 'SOURCE_BASE_REVISION', '"' + sourceBaseRevision + '"'
+        buildConfigField 'boolean', 'SOURCE_DIRTY', '' + sourceDirty
+        buildConfigField 'String', 'UNO_RULES_VERSION', '"friends-108-number-batch-zero-five-v2"'
+        testInstrumentationRunner 'games.dominogo.host.UpdateCheckInstrumentation'
+        ndk { abiFilters 'arm64-v8a' }
+    }
+    packaging { jniLibs { useLegacyPackaging = true } }
+    buildFeatures { buildConfig = true }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
+}

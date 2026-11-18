@@ -2,7 +2,7 @@
 //!
 //! Argon2id password storage with transparent legacy SHA-256 migration.
 
-use crate::domain::{app, AppState};
+use crate::domain::AppState;
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use axum::http::{header::AUTHORIZATION, HeaderValue};
@@ -89,8 +89,7 @@ impl FromRequestParts<Arc<AppState>> for AuthUser {
             return Err(unauthorized("Unauthorized"));
         };
 
-        let app = app(); // NOTE: same as `state`, using the global keeps one lookup path.
-        let _ = state;
+        let app = state;
 
         // Same query as the TS `authenticate` middleware.
         let user_id: Option<String> = app.db.query_one(

@@ -144,3 +144,26 @@ The current browser bundle and both new draw assets are live on the existing pub
 Match history now inner-joins game_states, so a waiting room never appears as a played/resumable match. Abandoned waiting rooms with no game state are cleaned after 90 seconds without a subscribed participant, checked every 10 seconds. Any subscribed participant keeps a waiting room alive; bots and a user's separate home-page connection do not. Refresh/reconnect has a grace period. Explicit final-human leave still removes an unstarted room immediately. Started, paused, round-end and completed matches retain their saved state/history.
 
 Cleanup and subscription/start operations are serialized so a start or resubscribe cannot race with deletion. The delete condition rechecks both waiting status and absence of a game state. Foreign-key cascades clear empty-room memberships and invitations. A native regression checks the grace boundary, protection once a state exists, and membership cleanup. The isolated --waiting-only acceptance scenario exercises real time, bot-filled abandonment, active subscription retention, history exclusion before start/inclusion after start, and explicit leaving. Native workspace tests: 49 passing; strict native Clippy passes.
+
+
+## Personal emote ordering — 15 November 2026
+
+Successful table reactions now save unique `reaction_uses` records against the
+signed-in account. The private `emote_usage` socket event loads aggregated counts
+on connection and updates that account's open tabs after accepted sends. The
+client sorts all supported emotes by descending count, retaining the original
+order for ties and unused emotes. Keyed buttons keep their emoji identity; the
+strip returns to its left edge after updates. Rejected and disconnected sends do
+not increment counts, and clients cannot supply another user's ID or frequency.
+
+Use records merge by UUID union during offline phone/PC sync, preserving equal
+independent increments and making repeated/interrupted sync idempotent. The sync
+helper applies the additive PC table migration while offline and treats an older
+common baseline as having no reaction-use records once both databases are updated.
+Existing unrelated schema-mismatch guards remain in place.
+
+Verified: database reopen, concurrent increments, account isolation, default and
+tie order, unsupported emotes, network rejection cases, fresh socket restore,
+two-tab updates, sync-baseline upgrade and idempotence. Browser checks at 390×844
+confirmed sorting after sending, left-edge visibility after selecting a distant
+emote, and the saved order after reload/rejoining. Tests used an isolated database.

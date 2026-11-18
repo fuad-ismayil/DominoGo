@@ -11,6 +11,8 @@ pub type Tile = [u8; 2];
 #[serde(rename_all = "camelCase")]
 pub struct SGameState {
     #[serde(default)]
+    pub telefon: Vec<domino_core::TelefonNode>,
+    #[serde(default)]
     pub mode: String,
     #[serde(default)]
     pub draw_rule: domino_core::DrawRule,
@@ -121,6 +123,8 @@ pub struct StopVote {
 /// `GET /api/matches/history` row.
 #[derive(Debug, Clone, Default, Deserialize, PartialEq)]
 pub struct MatchRow {
+    #[serde(default)]
+    pub mode: String,
     #[serde(default)]
     pub id: String,
     #[serde(default)]

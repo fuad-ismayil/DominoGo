@@ -32,6 +32,7 @@ pub struct Session {
 /// Lobby view (`lobbyId`, players, max players, host flag).
 #[derive(Debug, Clone, Default)]
 pub struct LobbyView {
+    pub mode: String,
     pub draw_rule: domino_core::DrawRule,
     pub lobby_id: String,
     pub players: Vec<LobbyPlayer>,
@@ -65,6 +66,8 @@ pub static INVITE_NOTICE: GlobalSignal<Option<crate::invite::InviteProblem>> =
     Signal::global(|| None);
 
 pub static SESSION: GlobalSignal<Session> = Signal::global(Session::default);
+pub static EMOTE_USAGE: GlobalSignal<std::collections::BTreeMap<String, u64>> =
+    Signal::global(std::collections::BTreeMap::new);
 
 pub static LOBBY: GlobalSignal<LobbyView> = Signal::global(LobbyView::default);
 pub static GAME_STATE: GlobalSignal<Option<SGameState>> = Signal::global(|| None);
@@ -114,6 +117,12 @@ pub fn parse_players(value: &serde_json::Value) -> Vec<LobbyPlayer> {
 /// Apply `{ token, user }` responses (login/register/guest).
 pub fn apply_auth(data: &serde_json::Value) {
     let user = &data["user"];
+    if user["id"]
+        .as_str()
+        .is_some_and(|id| id != SESSION.read().user_id)
+    {
+        EMOTE_USAGE.signal().write().clear();
+    }
     let mut s = SESSION.read().clone();
     if let Ok(u) = serde_json::from_value::<SUser>(user.clone()) {
         s.username = u.username;
@@ -158,4 +167,4 @@ pub fn player_name(id: &str) -> String {
 }
 
 /// Supported table reactions.
-pub const REACTIONS: [&str; 8] = ["👍", "👎", "😤", "🎉", "😂", "🔥", "💀", "🤝"];
+pub const REACTIONS: [&str; 16] = domino_core::REACTIONS;

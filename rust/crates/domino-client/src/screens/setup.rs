@@ -9,14 +9,20 @@ pub fn Setup() -> Element {
     let mut count = use_signal(|| 2i64);
     let mut busy = use_signal(|| false);
     let mut free_draw = use_signal(|| true);
+    let mut mode = use_signal(|| domino_core::GameMode::OneOhOne);
     let create = *SCREEN.read() == Screen::CreateLobby;
     rsx! { section { class: "setup-page menu-page",
         BackButton {}
         div { class: "setup-card glass",
             h1 { if create { {t("Set the table.")} } else { {t("You're invited.")} } }
             p { class: "muted", if create { {t("Your table, your people. Pick the number of seats, then invite friends or add a bot.")} } else { {t("Ask your host for the seven-character table code and join the next round.")} } }
-            form { onsubmit: move |e| { e.prevent_default(); if busy() { return; } busy.set(true); spawn(async move { if create { if let Some(v) = result(net::create_lobby(count(), if free_draw() { domino_core::DrawRule::Anytime } else { domino_core::DrawRule::WhenBlocked }).await).await { if let Some(id) = v["id"].as_str() { enter_lobby(id.to_string()).await; } } } else { enter_lobby(code().trim().to_uppercase()).await; } busy.set(false); }); },
+            form { onsubmit: move |e| { e.prevent_default(); if busy() { return; } busy.set(true); spawn(async move { if create { if let Some(v) = result(net::create_lobby(count(), if free_draw() { domino_core::DrawRule::Anytime } else { domino_core::DrawRule::WhenBlocked }, mode()).await).await { if let Some(id) = v["id"].as_str() { enter_lobby(id.to_string()).await; } } } else { enter_lobby(code().trim().to_uppercase()).await; } busy.set(false); }); },
                 if create {
+                    fieldset { class: "seat-picker mode-picker", legend { {t("Game mode")} }
+                        for (value,label,detail) in [(domino_core::GameMode::OneOhOne,"101","Classic dominoes"),(domino_core::GameMode::Telefon,"5-lik · Telefon","Score in fives · First to 365")] {
+                            button { r#type:"button", disabled:busy(), class:if mode()==value {"seat-option selected glass"}else{"seat-option glass"}, aria_pressed:mode()==value, onclick:move |_|mode.set(value), strong {"{label}"} span {{t(detail)}} }
+                        }
+                    }
                     fieldset { class: "seat-picker", legend { {t("How many players?")} }
                         for n in [2i64,3,4] { button { r#type: "button", class: if count()==n { "seat-option selected glass" } else { "seat-option glass" }, aria_pressed: "{count()==n}", onclick: move |_| count.set(n), strong { "{n}" } span { {t("players")} } } }
                     }
@@ -31,7 +37,7 @@ pub fn Setup() -> Element {
                 } else { label { r#for: "code", {t("Table code")} } input { class: "code-input", id: "code", name: "table-code", required: true, maxlength: 7, minlength: 7, autocomplete: "off", spellcheck: "false", autocapitalize: "characters", placeholder: "ABC1234", value: "{code}", oninput: move |e| code.set(e.value().trim().to_uppercase()) } }
                 button { class: "setup-submit", disabled: busy(), if busy() { {t("Opening your table…")} } else if create { {t("Create table")} } else { {t("Join table")} } Icon { name: "arrow" } }
             }
-            small { class: "setup-footnote", {t("Private tables · 101 scoring · Double-six dominoes")} }
+            small { class: "setup-footnote", {t("Private tables · Double-six dominoes")} }
         }
     } }
 }

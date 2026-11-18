@@ -1,0 +1,10 @@
+.gradle/
+build/
+local.properties
+app/build/
+app/src/main/assets/web/
+app/src/main/assets/web-unogo/
+app/src/main/jniLibs/
+dist/
+*.jks
+__pycache__/

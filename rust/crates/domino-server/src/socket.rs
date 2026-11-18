@@ -48,6 +48,9 @@ struct InviteIdPayload {
 
 fn user_of(socket: &SocketRef) -> Option<String> {
     let app = app();
+    if !app.games.domino.enabled() {
+        return None;
+    }
     let (uid, token) = {
         let registry = app.registry.read().unwrap_or_else(|e| e.into_inner());
         let session = registry.by_socket.get(&socket.id)?;
@@ -90,7 +93,7 @@ fn parse_payload<T: serde::de::DeserializeOwned>(
     }
 }
 
-const ALLOWED_REACTIONS: [&str; 8] = ["👍", "👎", "😤", "🎉", "😂", "🔥", "💀", "🤝"];
+const ALLOWED_REACTIONS: [&str; 16] = domino_core::REACTIONS;
 
 /// TS `io.use` rejection error — its Display IS the `connect_error` message.
 #[derive(Debug)]
@@ -166,6 +169,10 @@ pub async fn on_connect(socket: SocketRef, Data(auth): Data<ConnectAuth>) {
         }
     }
 
+    // Preferences belong to the authenticated account, never the table.
+    if let Ok(counts) = app.db.reaction_usage(&user_id) {
+        let _ = socket.emit("emote_usage", &json!({"userId":user_id,"counts":counts}));
+    }
     socket.on("join_lobby", on_join_lobby);
     socket.on("leave_lobby", on_leave_lobby);
     socket.on("play_tile", on_play_tile);
@@ -401,11 +408,22 @@ async fn on_send_reaction(socket: SocketRef, Data(d): Data<Value>, ack: AckSende
             let _ = ack.send(&json!({"error":"Not a table member"}));
             return;
         }
+        if app().db.record_reaction(&user_id, &payload.emoji).is_err() {
+            let _ = ack.send(&json!({"error":"Could not save your reaction. Try again."}));
+            return;
+        }
         app().emit_to_room(
             &payload.lobby_id,
             "reaction",
             &json!({"userId":user_id,"emoji":payload.emoji}),
         );
+        if let Ok(counts) = app().db.reaction_usage(&user_id) {
+            app().emit_to_user(
+                &user_id,
+                "emote_usage",
+                &json!({"userId":user_id,"counts":counts}),
+            );
+        }
         let _ = ack.send(&json!({"success":true}));
     }
 }

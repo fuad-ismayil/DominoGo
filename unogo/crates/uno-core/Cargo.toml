@@ -1,0 +1,13 @@
+[package]
+name = "uno-core"
+version = "0.1.0"
+edition = "2021"
+description = "UnoGo authoritative 108-card single-round and Friends house rules"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+getrandom = { version = "0.2", features = ["js"] }
+
+[dev-dependencies]
+serde_json = "1"

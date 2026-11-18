@@ -18,6 +18,7 @@ pub mod i18n;
 pub mod invite;
 #[path = "game/placement.rs"]
 pub mod placement;
+pub mod reactions;
 #[cfg(target_arch = "wasm32")]
 pub mod store;
 pub mod swipe;
@@ -48,3 +49,5 @@ pub fn stub_native() {
 pub mod layout;
 #[cfg(target_arch = "wasm32")]
 pub mod screens;
+#[path = "game/telefon_layout.rs"]
+pub mod telefon_layout;
