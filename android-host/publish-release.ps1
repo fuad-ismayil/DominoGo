@@ -34,7 +34,7 @@ $hash = (Get-FileHash -LiteralPath $apk -Algorithm SHA256).Hash.ToLowerInvariant
 $sumFile = Join-Path $PSScriptRoot 'dist/GoHost.apk.sha256'
 [IO.File]::WriteAllText($sumFile, "$hash  GoHost.apk`n")
 $commit = (git -C (Split-Path $PSScriptRoot -Parent) rev-parse HEAD).Trim()
-$dirty = git -C (Split-Path $PSScriptRoot -Parent) status --porcelain
+$dirty = git -C (Split-Path $PSScriptRoot -Parent) status --porcelain --untracked-files=no
 $body = @"
 Go Host $version (version code $versionCode).
 
