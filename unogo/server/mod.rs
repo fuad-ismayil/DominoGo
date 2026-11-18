@@ -226,8 +226,8 @@ fn tick(tx: &Transaction<'_>, room: &mut Room, time: u64, bots: bool) -> Result<
         let view = saved.game.view(0)?;
         if !view.paused && bots {
             if let Phase::TouchFive {challenge,starts_at,..}=view.phase {
-                for seat in 0..room.seats.len() {
-                    if room.seats[seat].user_id.is_some() || time<starts_at+350+(seat as u64*181+challenge*97)%700 {continue;}
+                for (seat, occupant) in room.seats.iter().enumerate() {
+                    if occupant.user_id.is_some() || time<starts_at+350+(seat as u64*181+challenge*97)%700 {continue;}
                     let bot_view=saved.game.view(seat)?;
                     if !matches!(bot_view.phase,Phase::TouchFive{challenge:id,..} if id==challenge){break;}
                     if let Some(action)=bot_action(&bot_view,seat){
