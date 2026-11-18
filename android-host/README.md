@@ -1,6 +1,16 @@
 # Go Host for Android
 
-## Current deployment: 2.3.2, version code 17
+## Current deployment: 2.3.3, version code 18
+
+Self-updated November 19, 2026, 02:08 from
+[android-v2.3.3](https://github.com/fuad-ismayil/DominoGo/releases/tag/android-v2.3.3)
+**without any prompt**: Stop all, Start both, and the phone downloaded,
+verified, installed and restarted hosting within about a minute. DominoGo menus
+scroll less: Home drops the duplicate Friends/Leaderboard buttons, the bottom
+capsule is Home/Friends/Ranking with a friend-request badge, and the phone
+create-table page fits one screen.
+
+### Previous 2.3.2 deployment
 
 First self-update, November 19, 2026, 01:31: Start found release
 [android-v2.3.2](https://github.com/fuad-ismayil/DominoGo/releases/tag/android-v2.3.2),
