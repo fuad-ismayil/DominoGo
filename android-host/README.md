@@ -1,6 +1,15 @@
 # Go Host for Android
 
-## Current deployment: 2.3.0, version code 15
+## Current deployment: 2.3.1, version code 16
+
+Installed over ADB November 19, 2026. GitHub's anonymous API allows 60
+requests per hour per public IP, shared by every device on the connection. A
+limited check no longer stops hosting: the app starts the installed version
+and says when checks work again. Answers are cached with ETags; GitHub does
+not count "not modified" replies, and the last answer is used if GitHub
+refuses. Release APK downloads are not API requests and are not limited this way.
+
+### Previous 2.3.0 deployment
 
 Installed over ADB November 19, 2026. Go Host can now update itself from
 GitHub releases (see [Self-update](#self-update-from-github-releases)). The
